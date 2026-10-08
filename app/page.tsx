@@ -8,6 +8,7 @@ import InstallPrompt from '../components/InstallPrompt';
 import { closeRoom, createRoom, ensureAnonymousSession, getProfile, getRoom, joinRoom, leaveRoom, loadLobby, saveProfile } from '../lib/hunt';
 import { supabase } from '../lib/supabase';
 import type { LobbySnapshot, Room } from '../lib/types';
+const { isPositionFresh } = require('../lib/location-freshness.cjs') as { isPositionFresh: (updatedAt: string, nowMs?: number) => boolean };
 const { messageFromError } = require('../lib/error-message.cjs') as { messageFromError: (error: unknown) => string };
 type ActiveRoomStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 const {
@@ -36,9 +37,10 @@ function activeRoomStorage(): ActiveRoomStorage | null {
 }
 
 function formatAge(timestamp: number | string | null | undefined) {
-  if (!timestamp) return 'Aucun signal reçu';
+  if (timestamp == null || timestamp === '') return 'Aucun signal reçu';
   const value = typeof timestamp === 'number' ? timestamp : new Date(timestamp).getTime();
-  const seconds = Math.max(0, Math.floor((Date.now() - value) / 1000));
+  if (!Number.isFinite(value) || value > Date.now()) return 'Horodatage invalide';
+  const seconds = Math.floor((Date.now() - value) / 1000);
   if (seconds < 5) return 'À l’instant';
   if (seconds < 60) return `Il y a ${seconds} s`;
   const minutes = Math.floor(seconds / 60);
@@ -54,10 +56,10 @@ function SignalStatus({ state, accuracy, lastUpdate, errorMessage }: { state: Re
     unavailable: 'Signal indisponible',
   } as const;
   const detail = state === 'active'
-    ? `${formatAge(lastUpdate)} · ±${accuracy == null ? '—' : Math.round(accuracy)} m`
+    ? `${errorMessage ? `${errorMessage} · ` : ''}${formatAge(lastUpdate)} · ±${accuracy == null ? '—' : Math.round(accuracy)} m`
     : errorMessage ?? (state === 'requesting' ? 'Autorise la localisation dans ton navigateur.' : 'Aucun partage de position en cours.');
 
-  return <div className={`signal-status ${state}`}><span className="signal-status-mark" /><span><strong>{labels[state]}</strong><small>{detail}</small></span></div>;
+  return <div className={`signal-status ${state}`} role="status" aria-live="polite"><span className="signal-status-mark" /><span><strong>{labels[state]}</strong><small>{detail}</small></span></div>;
 }
 
 function CopyButton({ value, label = 'Copier' }: { value: string; label?: string }) {
@@ -114,6 +116,20 @@ export default function Home() {
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [squadExpanded, setSquadExpanded] = useState(false);
   const [desktopLobby, setDesktopLobby] = useState(false);
+  const [freshnessNow, setFreshnessNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    setFreshnessNow(Date.now());
+  }, [snapshot.locations]);
+
+  useEffect(() => {
+    const nextExpiry = snapshot.locations
+      .filter((location) => isPositionFresh(location.updated_at, freshnessNow))
+      .reduce((next, location) => Math.min(next, Date.parse(location.updated_at) + 45_000), Number.POSITIVE_INFINITY);
+    if (!Number.isFinite(nextExpiry)) return;
+    const timer = window.setTimeout(() => setFreshnessNow(Date.now()), Math.max(0, nextExpiry - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [snapshot.locations, freshnessNow]);
 
   useEffect(() => {
     const query = window.matchMedia('(min-width: 800px)');
@@ -224,7 +240,7 @@ export default function Home() {
     return () => { void gps.stop(); };
   }, [room?.id, gps.start, gps.stop]);
 
-  const recentLocations = useMemo(() => snapshot.locations.filter((location) => Date.now() - new Date(location.updated_at).getTime() < 45_000), [snapshot.locations]);
+  const recentLocations = useMemo(() => snapshot.locations.filter((location) => isPositionFresh(location.updated_at, freshnessNow)), [snapshot.locations, freshnessNow]);
   const activeLocationCount = recentLocations.length;
 
   async function handleLogin() {
@@ -375,7 +391,7 @@ export default function Home() {
               <div className="beacon-row"><SignalStatus state={gps.state} accuracy={gps.accuracy} lastUpdate={gps.lastUpdate} errorMessage={gps.errorMessage} /><button className={`beacon-switch ${sharing ? 'active' : ''}`} role="switch" aria-checked={sharing} aria-label="Partager ma position avec l’escouade" onClick={() => void (sharing ? gps.stop() : gps.start())}><span /></button></div>
               <ul className="members">{snapshot.members.map((member) => {
                 const location = snapshot.locations.find((item) => item.user_id === member.user_id);
-                const fresh = Boolean(location && Date.now() - new Date(location.updated_at).getTime() < 45_000);
+                const fresh = Boolean(location && isPositionFresh(location.updated_at, freshnessNow));
                 const own = member.user_id === userId;
                 return <li key={member.user_id}><span className={`member-avatar ${own ? 'self' : ''} ${fresh ? 'online' : ''}`}>{(member.profiles?.nickname ?? 'Joueur').slice(0, 1).toUpperCase()}</span><div><strong>{member.profiles?.nickname ?? 'Joueur'}{own && <span className="you-tag">toi</span>}</strong><small>{fresh ? `${formatAge(location?.updated_at)} · ±${location?.accuracy == null ? '—' : Math.round(location.accuracy)} m` : location ? `Dernier signal · ${formatAge(location.updated_at)}` : 'En attente de position'}</small></div><span className={`presence-dot ${fresh ? 'online' : ''} ${own ? 'self' : ''}`} aria-label={fresh ? 'Position récente' : 'Sans position récente'} /></li>;
               })}</ul>
