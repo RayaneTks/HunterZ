@@ -280,3 +280,68 @@ input:focus { border-color: var(--amber); box-shadow: 0 0 0 3px rgb(242 188 88 /
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* Refined command surface: one decision, one primary action. */
+.panel, .install-prompt, .map-marker, .map-beacon-action, .presence-dot.online { box-shadow: none; }
+.app-header { align-items: center; }
+.brand-lockup { gap: 0; }
+.brand-signal, .brand-caption { display: none; }
+.brand-name { font-size: 22px; letter-spacing: .12em; }
+.app-header-compact { margin-bottom: 26px; }
+.user-menu { position: relative; }
+.user-menu-trigger { display: inline-flex; align-items: center; gap: 8px; padding: 2px 0; color: var(--muted-strong); cursor: pointer; font-size: 12px; list-style: none; }
+.user-menu-trigger::-webkit-details-marker { display: none; }
+.user-menu-trigger:hover { color: var(--ink); }
+.user-menu-dots { margin-left: 3px; color: var(--muted); letter-spacing: .14em; }
+.user-menu-popover { position: absolute; z-index: 5; top: calc(100% + 9px); right: 0; display: grid; min-width: 150px; gap: 4px; padding: 6px; border: 1px solid var(--line); background: var(--field-raised); }
+.user-menu-popover .button { justify-content: flex-start; width: 100%; }
+.command-view { width: min(100%, 620px); margin: 0 auto; gap: 34px; }
+.page-intro { display: block; padding: 0; }
+.page-intro .kicker { display: none; }
+.page-intro h1 { margin: 0; font-size: clamp(40px, 7vw, 62px); letter-spacing: -.075em; }
+.lead-small { max-width: 360px; margin-top: 14px; font-size: 16px; line-height: 1.5; }
+.command-actions { display: grid; gap: 25px; }
+.primary-action { display: grid; gap: 11px; padding-bottom: 25px; border-bottom: 1px solid var(--line); }
+.primary-action .button { min-height: 52px; font-size: 14px; }
+.action-note, .privacy-note { display: flex; align-items: flex-start; gap: 7px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.join-action { display: grid; gap: 11px; }
+.join-label { margin: 0; color: var(--muted-strong); font-size: 13px; }
+.join-row { margin-top: 0; }
+.join-row input { min-height: 48px; border-radius: 5px; letter-spacing: .2em; background: transparent; }
+.join-row .button { min-width: 52px; min-height: 48px; }
+.privacy-note { margin-top: -8px; }
+.privacy-note svg { flex: 0 0 auto; color: var(--amber); }
+.action-error { display: flex; align-items: center; gap: 8px; padding-top: 2px; color: #ffc3ba; font-size: 12px; line-height: 1.4; }
+.action-error > svg { flex: 0 0 auto; color: var(--vermilion); }
+.action-error span { flex: 1; }
+.action-error .icon-button { width: 26px; min-height: 26px; color: var(--muted-strong); }
+.alert .icon-button { border: 0; color: var(--muted-strong); background: transparent; }
+
+/* Keep the lobby map-first while making the supporting surface quieter. */
+.field-map-shell { border: 0; padding: 0; background: transparent; box-shadow: none; }
+.field-map-header { padding: 0 0 11px; }
+.field-map-header .kicker { display: none; }
+.field-map-header h1 { margin: 0; letter-spacing: .04em; }
+.map-wrap { border-radius: 8px; }
+.map-live { display: none; }
+.squad-sheet { border: 0; padding: 18px 0 0; background: transparent; box-shadow: none; }
+.sheet-heading h2 { margin-top: 0; }
+.share-beacon { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-left: 0; padding: 13px 0; background: transparent; }
+.beacon-panel { padding: 15px 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; }
+.beacon-icon { display: none; }
+.squad-section { padding-top: 2px; }
+.sidebar-footer { padding-top: 4px; }
+
+@media (max-width: 640px) {
+  .app-shell { padding: 24px 20px max(30px, env(safe-area-inset-bottom)); }
+  .app-header { flex-direction: row; gap: 12px; margin-bottom: 56px; }
+  .app-header-compact { margin-bottom: 14px; }
+  .brand-name { font-size: 20px; }
+  .user-menu-trigger { font-size: 13px; }
+  .command-view { gap: 32px; }
+  .page-intro h1 { font-size: clamp(43px, 13vw, 58px); line-height: .95; }
+  .lead-small { margin-top: 13px; }
+  .primary-action .button { min-height: 54px; }
+  .privacy-note { margin-top: -5px; }
+  .squad-sheet { padding-top: 14px; }
+}

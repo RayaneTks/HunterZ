@@ -1,21 +1,18 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { ArrowRight, Check, CircleAlert, Copy, Crosshair, LogOut, MapPin, Plus, Radio, Search, ShieldCheck, Signal, Target, Users, Wifi, X } from 'lucide-react';
+import { ArrowRight, Check, CircleAlert, Copy, Crosshair, LogOut, MapPin, Radio, ShieldCheck, Signal, Target, Wifi, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useGeolocation } from '../hooks/use-geolocation';
 import InstallPrompt from '../components/InstallPrompt';
-import { closeRoom, createRoom, ensureAnonymousSession, getProfile, getRoom, joinRoom, leaveRoom, loadLobby, saveProfile, searchProfiles } from '../lib/hunt';
+import { closeRoom, createRoom, ensureAnonymousSession, getProfile, getRoom, joinRoom, leaveRoom, loadLobby, saveProfile } from '../lib/hunt';
 import { supabase } from '../lib/supabase';
-import type { LobbySnapshot, Profile, Room } from '../lib/types';
+import type { LobbySnapshot, Room } from '../lib/types';
+const { messageFromError } = require('../lib/error-message.cjs') as { messageFromError: (error: unknown) => string };
 
 const MapView = dynamic(() => import('../components/MapView'), { ssr: false });
 const ROOM_STORAGE_KEY = 'hunt:active-room';
-
-function messageFromError(error: unknown) {
-  if (error instanceof Error) return error.message;
-  return 'Une erreur inattendue est survenue.';
-}
+type ErrorScope = 'global' | 'profile' | 'create' | 'join';
 
 function formatAge(timestamp: number | string | null | undefined) {
   if (!timestamp) return 'Aucun signal reçu';
@@ -54,15 +51,19 @@ function CopyButton({ value, label = 'Copier' }: { value: string; label?: string
   return <button className="button button-ghost button-small" onClick={() => void copy()}><span>{copied ? <Check size={15} /> : <Copy size={15} />}</span>{copied ? 'Copié' : label}</button>;
 }
 
-function Brand() {
-  return <div className="brand-lockup"><div className="brand-signal" aria-hidden="true"><span /><span /><span /></div><div><p className="brand-name">HUNT<span>.</span></p><p className="brand-caption">SIGNAL / TRACE</p></div></div>;
+function ActionError({ message, onRetry, onDismiss }: { message: string; onRetry?: () => void; onDismiss: () => void }) {
+  return <div className="action-error" role="alert"><CircleAlert size={15} /><span>{message}</span>{onRetry && <button className="button button-ghost button-small action-retry" onClick={onRetry}>Réessayer</button>}<button className="icon-button" onClick={onDismiss} aria-label="Fermer"><X size={15} /></button></div>;
 }
 
-function UserActions({ nickname, editing, nicknameInput, busy, onEdit, onSave, onCancel, onLogout, onChange }: { nickname: string; editing: boolean; nicknameInput: string; busy: boolean; onEdit: () => void; onSave: () => void; onCancel: () => void; onLogout: () => void; onChange: (value: string) => void }) {
+function Brand() {
+  return <div className="brand-lockup"><p className="brand-name">HUNT<span>.</span></p></div>;
+}
+
+function CompactUserActions({ nickname, editing, nicknameInput, busy, onEdit, onSave, onCancel, onLogout, onChange }: { nickname: string; editing: boolean; nicknameInput: string; busy: boolean; onEdit: () => void; onSave: () => void; onCancel: () => void; onLogout: () => void; onChange: (value: string) => void }) {
   if (editing) {
-    return <div className="profile-editor"><input aria-label="Modifier l’indicatif" value={nicknameInput} maxLength={24} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onSave(); }} /><button className="button button-small button-primary" onClick={onSave} disabled={busy}>Enregistrer</button><button className="button button-ghost button-small icon-button" onClick={onCancel} aria-label="Annuler"><X size={16} /></button></div>;
+    return <div className="profile-editor"><input aria-label="Modifier l'indicatif" value={nicknameInput} maxLength={24} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onSave(); }} /><button className="button button-small button-primary" onClick={onSave} disabled={busy}>Enregistrer</button><button className="button button-ghost button-small icon-button" onClick={onCancel} aria-label="Annuler"><X size={16} /></button></div>;
   }
-  return <div className="user-actions"><span className="user-chip"><span className="user-avatar">{nickname.slice(0, 1).toUpperCase()}</span>{nickname}</span><button className="button button-ghost button-small" onClick={onEdit}>Modifier</button><button className="button button-ghost button-small icon-button" onClick={onLogout} disabled={busy} aria-label="Se déconnecter"><LogOut size={16} /></button></div>;
+  return <details className="user-menu"><summary className="user-menu-trigger"><span className="user-avatar">{nickname.slice(0, 1).toUpperCase()}</span><span>{nickname}</span><span className="user-menu-dots" aria-hidden="true">•••</span></summary><div className="user-menu-popover"><button className="button button-ghost button-small" onClick={onEdit}>Modifier</button><button className="button button-ghost button-small" onClick={onLogout} disabled={busy}><LogOut size={15} /> Déconnexion</button></div></details>;
 }
 
 function LoadingScreen() {
@@ -76,10 +77,9 @@ export default function Home() {
   const [room, setRoom] = useState<Room | null>(null);
   const [snapshot, setSnapshot] = useState<LobbySnapshot>({ members: [], locations: [] });
   const [joinCode, setJoinCode] = useState('');
-  const [search, setSearch] = useState('');
-  const [results, setResults] = useState<Profile[]>([]);
   const [editingProfile, setEditingProfile] = useState(false);
   const [error, setError] = useState('');
+  const [errorScope, setErrorScope] = useState<ErrorScope>('global');
   const [busy, setBusy] = useState(false);
   const [booting, setBooting] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -87,6 +87,16 @@ export default function Home() {
   const [preciseLocationAllowed, setPreciseLocationAllowed] = useState(true);
 
   const gps = useGeolocation(room?.id, userId);
+
+  function clearError() {
+    setError('');
+    setErrorScope('global');
+  }
+
+  function showError(message: string, scope: ErrorScope = 'global') {
+    setError(message);
+    setErrorScope(scope);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -119,7 +129,7 @@ export default function Home() {
           }
         }
       } catch (bootError) {
-        if (!cancelled) setError(messageFromError(bootError));
+        if (!cancelled) showError(messageFromError(bootError));
       } finally {
         if (!cancelled) setBooting(false);
       }
@@ -134,7 +144,7 @@ export default function Home() {
       setSyncing(true);
       setSnapshot(await loadLobby(room));
     } catch (loadError) {
-      setError(messageFromError(loadError));
+      showError(messageFromError(loadError));
     } finally {
       setSyncing(false);
     }
@@ -148,7 +158,7 @@ export default function Home() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'positions', filter: `room_id=eq.${room.id}` }, refreshLobby)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'room_members', filter: `room_id=eq.${room.id}` }, refreshLobby)
       .subscribe((status) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') setError('Le réseau de la chasse est momentanément indisponible.');
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') showError('Le réseau de la chasse est momentanément indisponible.');
       });
     const fallback = window.setInterval(() => void refreshLobby(), 7000);
     return () => {
@@ -169,11 +179,11 @@ export default function Home() {
   async function handleLogin() {
     const value = nicknameInput.trim();
     if (value.length < 2 || value.length > 24) {
-      setError('L’indicatif doit contenir entre 2 et 24 caractères.');
+      showError('L’indicatif doit contenir entre 2 et 24 caractères.', 'profile');
       return;
     }
     setBusy(true);
-    setError('');
+    clearError();
     try {
       const id = userId || (await ensureAnonymousSession()).id;
       const profile = await saveProfile(id, value);
@@ -181,7 +191,7 @@ export default function Home() {
       setNickname(profile.nickname);
       setEditingProfile(false);
     } catch (loginError) {
-      setError(messageFromError(loginError));
+      showError(messageFromError(loginError), 'profile');
     } finally {
       setBusy(false);
     }
@@ -189,14 +199,14 @@ export default function Home() {
 
   async function handleCreate() {
     setBusy(true);
-    setError('');
+    clearError();
     try {
       const created = await createRoom();
       const nextRoom = { ...created, owner_id: userId };
       setRoom(nextRoom);
       window.localStorage.setItem(ROOM_STORAGE_KEY, JSON.stringify(nextRoom));
     } catch (createError) {
-      setError(messageFromError(createError));
+      showError(messageFromError(createError), 'create');
     } finally {
       setBusy(false);
     }
@@ -204,36 +214,23 @@ export default function Home() {
 
   async function handleJoin() {
     setBusy(true);
-    setError('');
+    clearError();
     try {
       const nextRoom = await joinRoom(joinCode);
       setRoom(nextRoom);
       window.localStorage.setItem(ROOM_STORAGE_KEY, JSON.stringify(nextRoom));
       setJoinCode('');
     } catch (joinError) {
-      setError(messageFromError(joinError));
+      showError(messageFromError(joinError), 'join');
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function handleSearch() {
-    const query = search.trim();
-    if (query.length < 2) {
-      setResults([]);
-      return;
-    }
-    try {
-      setResults(await searchProfiles(query));
-    } catch (searchError) {
-      setError(messageFromError(searchError));
     }
   }
 
   async function handleExit() {
     if (!room) return;
     setBusy(true);
-    setError('');
+    clearError();
     try {
       await gps.stop();
       if (room.owner_id === userId) await closeRoom(room.id);
@@ -242,7 +239,7 @@ export default function Home() {
       setRoom(null);
       setSnapshot({ members: [], locations: [] });
     } catch (exitError) {
-      setError(messageFromError(exitError));
+      showError(messageFromError(exitError));
     } finally {
       setBusy(false);
     }
@@ -264,7 +261,7 @@ export default function Home() {
       setNickname('');
       setNicknameInput('');
     } catch (logoutError) {
-      setError(messageFromError(logoutError));
+      showError(messageFromError(logoutError));
     } finally {
       setBusy(false);
     }
@@ -280,10 +277,10 @@ export default function Home() {
     <main className="app-shell">
       <header className={`app-header ${room ? 'app-header-compact' : ''}`}>
         <Brand />
-        {nickname && <UserActions nickname={nickname} editing={editingProfile} nicknameInput={nicknameInput} busy={busy} onEdit={() => setEditingProfile(true)} onSave={() => void handleLogin()} onCancel={() => { setNicknameInput(nickname); setEditingProfile(false); }} onLogout={() => void handleLogout()} onChange={setNicknameInput} />}
+        {nickname && <CompactUserActions nickname={nickname} editing={editingProfile} nicknameInput={nicknameInput} busy={busy} onEdit={() => setEditingProfile(true)} onSave={() => void handleLogin()} onCancel={() => { setNicknameInput(nickname); setEditingProfile(false); }} onLogout={() => void handleLogout()} onChange={setNicknameInput} />}
       </header>
 
-      {error && <div className="alert" role="alert"><CircleAlert size={17} /><span>{error}</span><button className="icon-button" onClick={() => setError('')} aria-label="Fermer"><X size={18} /></button></div>}
+      {error && errorScope === 'global' && <div className="alert" role="alert"><CircleAlert size={17} /><span>{error}</span><button className="icon-button" onClick={clearError} aria-label="Fermer"><X size={18} /></button></div>}
       <InstallPrompt />
 
       {!nickname ? (
@@ -302,18 +299,27 @@ export default function Home() {
             <p className="muted">Un pseudo suffit. La localisation ne sera demandée qu’une fois dans une chasse.</p>
             <label className="field-label" htmlFor="nickname">Indicatif</label>
             <input id="nickname" placeholder="Ex. Nova" value={nicknameInput} maxLength={24} onChange={(event) => setNicknameInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void handleLogin(); }} autoComplete="nickname" autoFocus />
+            {error && errorScope === 'profile' && <ActionError message={error} onDismiss={clearError} />}
             <button className="button button-primary button-wide" disabled={busy} onClick={() => void handleLogin()}>{busy ? 'Connexion…' : 'Entrer sur le terrain'}<ArrowRight size={17} /></button>
             <small className="form-note"><ShieldCheck size={13} /> Session anonyme, position visible uniquement dans ta chasse.</small>
           </section>
         </section>
       ) : !room ? (
         <section className="command-view">
-          <div className="page-intro"><div><p className="kicker">POSTE DE DÉPART · {nickname.toUpperCase()}</p><h1>Choisis ta chasse.</h1><p className="lead-small">Crée une balise privée ou rejoins ton escouade avec son code.</p></div><div className="network-state"><span className="signal-status-mark active" /> Réseau prêt</div></div>
-          <div className="command-grid">
-            <section className="panel command-card command-card-primary"><div className="command-card-top"><span className="command-symbol"><Plus size={21} /></span><span className="kicker">NOUVELLE CHASSE</span></div><div><h2>Ouvrir le terrain.</h2><p className="muted">Crée une salle privée et partage sa balise avec ton escouade.</p></div><button className="button button-primary button-wide" disabled={busy} onClick={() => void handleCreate()}>Créer une chasse <ArrowRight size={17} /></button></section>
-            <section className="panel command-card"><div className="command-card-top"><span className="command-symbol command-symbol-cool"><Users size={21} /></span><span className="kicker">REJOINDRE</span></div><div><h2>Suivre le signal.</h2><p className="muted">Entre le code à six caractères reçu de ton escouade.</p></div><div className="join-row"><input id="join-code" aria-label="Code de chasse" placeholder="A B C 1 2 3" value={joinCode} maxLength={6} onChange={(event) => setJoinCode(event.target.value.replace(/[^a-z0-9]/gi, '').toUpperCase())} onKeyDown={(event) => { if (event.key === 'Enter' && joinCode.length === 6) void handleJoin(); }} /><button className="button button-soft" disabled={busy || joinCode.length !== 6} onClick={() => void handleJoin()} aria-label="Rejoindre la chasse"><ArrowRight size={18} /></button></div></section>
+          <div className="page-intro"><p className="kicker">{nickname}</p><h1>Choisis une chasse.</h1><p className="lead-small">Crée une partie ou rejoins ton escouade.</p></div>
+          <div className="command-actions">
+            <section className="primary-action">
+              <button className="button button-primary button-wide" disabled={busy} onClick={() => void handleCreate()}>Créer une chasse <ArrowRight size={17} /></button>
+              <p className="action-note">Ouvre un terrain privé et partage son code avec ton escouade.</p>
+              {error && errorScope === 'create' && <ActionError message={error} onRetry={() => void handleCreate()} onDismiss={clearError} />}
+            </section>
+            <section className="join-action">
+              <p className="join-label">ou rejoindre avec un code</p>
+              <div className="join-row"><input id="join-code" aria-label="Code de chasse" placeholder="ABC123" value={joinCode} maxLength={6} onChange={(event) => setJoinCode(event.target.value.replace(/[^a-z0-9]/gi, '').toUpperCase())} onKeyDown={(event) => { if (event.key === 'Enter' && joinCode.length === 6) void handleJoin(); }} /><button className="button button-soft" disabled={busy || joinCode.length !== 6} onClick={() => void handleJoin()} aria-label="Rejoindre la chasse"><ArrowRight size={18} /></button></div>
+              {error && errorScope === 'join' && <ActionError message={error} onRetry={() => void handleJoin()} onDismiss={clearError} />}
+            </section>
           </div>
-          <section className="panel network-drawer"><div className="search-heading"><div><p className="kicker">RÉSEAU SECONDAIRE</p><h2>Retrouver un joueur.</h2></div><Search size={18} className="muted-icon" /></div><div className="search-row"><input aria-label="Recherche joueur" placeholder="Pseudo ou identifiant" value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void handleSearch(); }} /><button className="button button-soft" onClick={() => void handleSearch()}>Rechercher</button></div>{results.length > 0 && <div className="results">{results.map((profile) => <div className="result-row" key={profile.id}><div><strong>{profile.nickname}</strong><small>{profile.id}</small></div><CopyButton value={profile.id} label="Copier l’ID" /></div>)}</div>}<div className="identity-row"><span className="muted">Ton identifiant HUNT</span><code>{userId}</code><CopyButton value={userId} label="Copier" /></div></section>
+          <p className="privacy-note"><ShieldCheck size={14} /> Position visible uniquement dans ta chasse.</p>
         </section>
       ) : (
         <section className="lobby-view">
