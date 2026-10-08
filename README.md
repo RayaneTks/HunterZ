@@ -1,6 +1,3 @@
-Exit code: 0
-Wall time: 0.4 seconds
-Output:
 # HUNT V0.1 — lobby GPS multijoueur
 
 Prototype mobile-first pour réunir plusieurs téléphones dans un lobby privé et partager une position GPS récente sur une carte MapLibre. Les modes de jeu, le chat, le classement et l’historique de déplacement ne font pas partie de cette version.
@@ -58,4 +55,3 @@ La géolocalisation exige HTTPS sur téléphone (localhost est accepté en déve
 ## Déploiement Vercel
 
 Importer le dossier dans Vercel, conserver la commande de build `npm run build`, puis ajouter `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY` dans les environnements Preview et Production. Après chaque changement de schéma, rejouer la migration SQL dans le projet Supabase concerné et refaire le test à deux appareils.
-
