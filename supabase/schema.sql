@@ -79,6 +79,11 @@ create policy positions_insert on public.positions for insert to authenticated w
 create policy positions_update on public.positions for update to authenticated using (user_id = (select auth.uid()) and public.is_room_member(room_id)) with check (user_id = (select auth.uid()) and public.is_room_member(room_id));
 create policy positions_delete on public.positions for delete to authenticated using (user_id = (select auth.uid()) and public.is_room_member(room_id));
 
+grant select, insert, update on public.profiles to authenticated;
+grant select on public.rooms to authenticated;
+grant select, delete on public.room_members to authenticated;
+grant select, insert, update, delete on public.positions to authenticated;
+
 drop function if exists public.create_room();
 drop function if exists public.join_room(text);
 drop function if exists public.stop_sharing(uuid);
