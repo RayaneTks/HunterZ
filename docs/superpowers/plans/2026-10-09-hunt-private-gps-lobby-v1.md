@@ -36,6 +36,7 @@
 - Create: `supabase/config.toml`
 - Create: `supabase/migrations/20261009000000_fix_create_room_random_code.sql`
 - Create: `supabase/tests/lobby-contract.sql`
+- Create: `tests/sql-migration-sync.test.cjs`
 - Modify: `supabase/schema.sql:93-120`
 
 **Interfaces:**
