@@ -10,13 +10,14 @@ export default function MapView({ locations, me, recenterSignal }: { locations: 
   const map = useRef<MapInstance | null>(null);
   const markers = useRef<Marker[]>([]);
   const centeredOnOwnPosition = useRef(false);
+  const fittedToSquad = useRef(false);
 
   useEffect(() => {
     if (!container.current || map.current) return;
     const instance = new maplibregl.Map({
       container: container.current,
       style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-      center: [2.35, 48.86],
+      center: [5.3698, 43.2965],
       zoom: 12,
     });
     instance.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
@@ -35,13 +36,17 @@ export default function MapView({ locations, me, recenterSignal }: { locations: 
     markers.current = locations.map((player) => {
       const wrapper = document.createElement('div');
       wrapper.className = `marker-wrap${player.user_id === me ? ' self' : ''}`;
+      wrapper.setAttribute('role', 'img');
+      wrapper.setAttribute('aria-label', `${player.nickname}, précision de ${Math.round(player.accuracy ?? 0)} mètres`);
       const ring = document.createElement('div');
       ring.className = 'accuracy-ring';
       ring.style.width = `${Math.min(104, Math.max(46, (player.accuracy ?? 30) * 1.3))}px`;
       ring.style.height = ring.style.width;
       const markerElement = document.createElement('div');
       markerElement.className = 'map-marker';
-      markerElement.textContent = player.nickname.slice(0, 1).toUpperCase();
+      const glyph = document.createElement('span');
+      glyph.textContent = player.nickname.slice(0, 1).toUpperCase();
+      markerElement.append(glyph);
       wrapper.append(ring, markerElement);
       return new maplibregl.Marker({ element: wrapper })
         .setLngLat([player.longitude, player.latitude])
@@ -52,7 +57,15 @@ export default function MapView({ locations, me, recenterSignal }: { locations: 
 
   useEffect(() => {
     const own = locations.find((player) => player.user_id === me);
-    if (!own || !map.current) return;
+    if (!map.current || locations.length === 0) return;
+    if (locations.length > 1 && !fittedToSquad.current) {
+      const bounds = new maplibregl.LngLatBounds();
+      locations.forEach((player) => bounds.extend([player.longitude, player.latitude]));
+      map.current.fitBounds(bounds, { padding: 72, maxZoom: 16, duration: 800 });
+      fittedToSquad.current = true;
+      return;
+    }
+    if (!own) return;
     if (!centeredOnOwnPosition.current) {
       map.current.flyTo({ center: [own.longitude, own.latitude], zoom: 16, duration: 900 });
       centeredOnOwnPosition.current = true;

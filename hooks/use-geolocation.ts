@@ -10,12 +10,22 @@ export function useGeolocation(roomId: string | undefined, userId: string) {
   const [state, setState] = useState<GpsState>('off');
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [lastUpdate, setLastUpdate] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const watchId = useRef<number | null>(null);
   const lastSentAt = useRef(0);
   const roomIdRef = useRef(roomId);
   const userIdRef = useRef(userId);
 
   useEffect(() => {
+    if (roomIdRef.current !== roomId && watchId.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+      setState('off');
+      setAccuracy(null);
+      setLastUpdate(null);
+      setErrorMessage(null);
+      lastSentAt.current = 0;
+    }
     roomIdRef.current = roomId;
     userIdRef.current = userId;
   }, [roomId, userId]);
@@ -36,16 +46,20 @@ export function useGeolocation(roomId: string | undefined, userId: string) {
     setState('off');
     setAccuracy(null);
     setLastUpdate(null);
+    setErrorMessage(null);
+    lastSentAt.current = 0;
   }, []);
 
   const start = useCallback(() => {
     if (!roomIdRef.current || !userIdRef.current || typeof navigator === 'undefined' || !navigator.geolocation) {
+      setErrorMessage('La localisation n’est pas disponible sur cet appareil.');
       setState('unavailable');
       return;
     }
     if (watchId.current !== null) return;
 
     setState('requesting');
+    setErrorMessage(null);
     watchId.current = navigator.geolocation.watchPosition(
       async (position) => {
         const currentRoom = roomIdRef.current;
@@ -53,6 +67,7 @@ export function useGeolocation(roomId: string | undefined, userId: string) {
         setState('active');
         setAccuracy(position.coords.accuracy);
         setLastUpdate(Date.now());
+        setErrorMessage(null);
         if (!currentRoom || !supabase || Date.now() - lastSentAt.current < 2500) return;
         lastSentAt.current = Date.now();
         const { error } = await supabase.from('positions').upsert({
@@ -63,18 +78,34 @@ export function useGeolocation(roomId: string | undefined, userId: string) {
           accuracy: position.coords.accuracy,
           updated_at: new Date(position.timestamp).toISOString(),
         });
-        if (error) setState('unavailable');
+        if (error) {
+          setErrorMessage('Le dernier signal n’a pas pu être transmis.');
+          setState('unavailable');
+        }
       },
       (error) => {
-        setState(error.code === error.PERMISSION_DENIED ? 'denied' : 'unavailable');
+        if (watchId.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
+          navigator.geolocation.clearWatch(watchId.current);
+          watchId.current = null;
+        }
+        if (error.code === error.PERMISSION_DENIED) {
+          setErrorMessage('Autorisation refusée. Tu peux réessayer depuis le bouton ci-dessous.');
+          setState('denied');
+          return;
+        }
+        setErrorMessage(error.message || 'Signal GPS indisponible pour le moment.');
+        setState('unavailable');
       },
-      { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 },
     );
   }, []);
 
   useEffect(() => () => {
-    if (watchId.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(watchId.current);
+    if (watchId.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+    }
   }, []);
 
-  return { state, accuracy, lastUpdate, start, stop };
+  return { state, accuracy, lastUpdate, errorMessage, start, stop };
 }

@@ -43,8 +43,8 @@ export default function InstallPrompt() {
     <aside className="install-prompt" aria-label="Installer HUNT">
       <div className="install-icon"><Download size={18} strokeWidth={2.4} /></div>
       <div className="install-copy">
-        <strong>HUNT sur ton écran d’accueil</strong>
-        <span>{ios ? <>Partager <Share size={13} /> puis « Sur l’écran d’accueil ».</> : 'Accède à ton lobby en un geste.'}</span>
+        <strong>Fixer HUNT sur ton terrain</strong>
+        <span>{ios ? <>Partager <Share size={13} /> puis « Sur l’écran d’accueil ».</> : 'Retrouve ta chasse en un geste.'}</span>
       </div>
       {installEvent && <button className="button button-small" onClick={() => void install()}>Installer</button>}
       <button className="icon-button" onClick={() => setDismissed(true)} aria-label="Fermer la suggestion"><X size={17} /></button>
