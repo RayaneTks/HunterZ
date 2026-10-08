@@ -104,7 +104,7 @@ begin
   end if;
 
   for attempt in 1..8 loop
-    generated_code := upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 6));
+    generated_code := pg_catalog.upper(pg_catalog.substr(pg_catalog.replace(pg_catalog.gen_random_uuid()::text, '-', ''), 1, 6));
     begin
       insert into public.rooms(code, owner_id) values (generated_code, (select auth.uid())) returning id into rid;
       exit;
