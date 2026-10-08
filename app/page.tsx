@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { ArrowRight, Check, CircleAlert, Copy, Crosshair, LogOut, MapPin, Radio, ShieldCheck, Signal, Target, Wifi, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, CircleAlert, Copy, Crosshair, LogOut, Radio, ShieldCheck, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useGeolocation } from '../hooks/use-geolocation';
 import InstallPrompt from '../components/InstallPrompt';
@@ -33,7 +33,7 @@ function SignalStatus({ state, accuracy, lastUpdate, errorMessage }: { state: Re
     unavailable: 'Signal indisponible',
   } as const;
   const detail = state === 'active'
-    ? `${formatAge(lastUpdate)} · ±${accuracy ? Math.round(accuracy) : '—'} m`
+    ? `${formatAge(lastUpdate)} · ±${accuracy == null ? '—' : Math.round(accuracy)} m`
     : errorMessage ?? (state === 'requesting' ? 'Autorise la localisation dans ton navigateur.' : 'Aucun partage de position en cours.');
 
   return <div className={`signal-status ${state}`}><span className="signal-status-mark" /><span><strong>{labels[state]}</strong><small>{detail}</small></span></div>;
@@ -41,14 +41,21 @@ function SignalStatus({ state, accuracy, lastUpdate, errorMessage }: { state: Re
 
 function CopyButton({ value, label = 'Copier' }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   async function copy() {
-    await navigator.clipboard?.writeText(value);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1600);
+    try {
+      if (!navigator.clipboard) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setCopyFailed(false);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopyFailed(true);
+    }
   }
 
-  return <button className="button button-ghost button-small" onClick={() => void copy()}><span>{copied ? <Check size={15} /> : <Copy size={15} />}</span>{copied ? 'Copié' : label}</button>;
+  return <div className="copy-control"><button className="button button-ghost button-small" onClick={() => void copy()}><span>{copied ? <Check size={15} /> : <Copy size={15} />}</span><span aria-live="polite">{copied ? 'Copié' : label}</span></button>{copyFailed && <label className="copy-fallback">Copie ce code<input readOnly value={value} aria-label="Code à copier manuellement" onFocus={(event) => event.target.select()} /></label>}</div>;
 }
 
 function ActionError({ message, onRetry, onDismiss }: { message: string; onRetry?: () => void; onDismiss: () => void }) {
@@ -56,18 +63,18 @@ function ActionError({ message, onRetry, onDismiss }: { message: string; onRetry
 }
 
 function Brand() {
-  return <div className="brand-lockup"><p className="brand-name">HUNT<span>.</span></p></div>;
+  return <div className="brand-lockup" aria-label="HUNT"><svg className="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path fill="currentColor" d="M5 5h13v5h-8v8H5zm25 0h13v13h-5v-8h-8zM5 30h5v8h8v5H5zm33 0h5v13H30v-5h8z" /><circle cx="24" cy="24" r="5" fill="#f05a50" /></svg><svg className="brand-name" viewBox="0 0 136 24" aria-hidden="true"><path fill="currentColor" d="M0 0h7v9h14V0h7v24h-7v-9H7v9H0zM36 0h7v17h14V0h7v19q0 5-5 5H41q-5 0-5-5zM73 0h7l15 15V0h7v24h-7L80 9v15h-7zM110 0h26v7h-9v17h-8V7h-9z" /></svg></div>;
 }
 
-function CompactUserActions({ nickname, editing, nicknameInput, busy, onEdit, onSave, onCancel, onLogout, onChange }: { nickname: string; editing: boolean; nicknameInput: string; busy: boolean; onEdit: () => void; onSave: () => void; onCancel: () => void; onLogout: () => void; onChange: (value: string) => void }) {
+function CompactUserActions({ nickname, editing, nicknameInput, busy, errorMessage, onEdit, onSave, onCancel, onLogout, onChange }: { nickname: string; editing: boolean; nicknameInput: string; busy: boolean; errorMessage?: string; onEdit: () => void; onSave: () => void; onCancel: () => void; onLogout: () => void; onChange: (value: string) => void }) {
   if (editing) {
-    return <div className="profile-editor"><input aria-label="Modifier l'indicatif" value={nicknameInput} maxLength={24} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onSave(); }} /><button className="button button-small button-primary" onClick={onSave} disabled={busy}>Enregistrer</button><button className="button button-ghost button-small icon-button" onClick={onCancel} aria-label="Annuler"><X size={16} /></button></div>;
+    return <div className="profile-editor"><div className="profile-field"><input aria-label="Modifier le pseudo" aria-invalid={Boolean(errorMessage)} aria-describedby={errorMessage ? 'profile-error' : undefined} value={nicknameInput} maxLength={24} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onSave(); }} />{errorMessage && <p id="profile-error" className="profile-error" role="alert">{errorMessage}</p>}</div><button className="button button-small button-primary" onClick={onSave} disabled={busy}>Enregistrer</button><button className="button button-ghost button-small icon-button" onClick={onCancel} aria-label="Annuler"><X size={16} /></button></div>;
   }
   return <details className="user-menu"><summary className="user-menu-trigger"><span className="user-avatar">{nickname.slice(0, 1).toUpperCase()}</span><span>{nickname}</span><span className="user-menu-dots" aria-hidden="true">•••</span></summary><div className="user-menu-popover"><button className="button button-ghost button-small" onClick={onEdit}>Modifier</button><button className="button button-ghost button-small" onClick={onLogout} disabled={busy}><LogOut size={15} /> Déconnexion</button></div></details>;
 }
 
 function LoadingScreen() {
-  return <main className="app-shell centered"><div className="loader-mark"><Radio size={22} /></div><p className="loading-copy">Connexion au terrain…</p></main>;
+  return <main className="app-shell centered"><Brand /><p className="loading-copy">Connexion…</p></main>;
 }
 
 export default function Home() {
@@ -84,7 +91,16 @@ export default function Home() {
   const [booting, setBooting] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [recenterSignal, setRecenterSignal] = useState(0);
-  const [preciseLocationAllowed, setPreciseLocationAllowed] = useState(true);
+  const [squadExpanded, setSquadExpanded] = useState(false);
+  const [desktopLobby, setDesktopLobby] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 800px)');
+    const update = () => setDesktopLobby(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
 
   const gps = useGeolocation(room?.id, userId);
 
@@ -168,10 +184,10 @@ export default function Home() {
   }, [room, refreshLobby]);
 
   useEffect(() => {
-    if (!room || !preciseLocationAllowed) return;
+    if (!room) return;
     void gps.start();
     return () => { void gps.stop(); };
-  }, [room?.id, preciseLocationAllowed, gps.start, gps.stop]);
+  }, [room?.id, gps.start, gps.stop]);
 
   const recentLocations = useMemo(() => snapshot.locations.filter((location) => Date.now() - new Date(location.updated_at).getTime() < 45_000), [snapshot.locations]);
   const activeLocationCount = recentLocations.length;
@@ -268,71 +284,78 @@ export default function Home() {
   }
 
   if (!supabase) {
-    return <main className="app-shell centered"><section className="empty-state"><div className="empty-icon"><Radio size={22} /></div><p className="kicker">CONFIGURATION REQUISE</p><h1 className="display-title">HUNT<span>.</span></h1><p className="muted">Ajoute les variables Supabase pour ouvrir le terrain.</p></section></main>;
+    return <main className="app-shell centered"><Brand /><p className="muted">Connexion au terrain indisponible.</p></main>;
   }
 
   if (booting) return <LoadingScreen />;
 
+  const sharing = gps.state === 'active' || gps.state === 'requesting';
+
   return (
-    <main className="app-shell">
-      <header className={`app-header ${room ? 'app-header-compact' : ''}`}>
+    <main className={`app-shell ${room ? 'app-shell-lobby' : ''}`}>
+      <header className="app-header">
         <Brand />
-        {nickname && <CompactUserActions nickname={nickname} editing={editingProfile} nicknameInput={nicknameInput} busy={busy} onEdit={() => setEditingProfile(true)} onSave={() => void handleLogin()} onCancel={() => { setNicknameInput(nickname); setEditingProfile(false); }} onLogout={() => void handleLogout()} onChange={setNicknameInput} />}
+        {nickname && <CompactUserActions nickname={nickname} editing={editingProfile} nicknameInput={nicknameInput} busy={busy} errorMessage={errorScope === 'profile' ? error : undefined} onEdit={() => { clearError(); setEditingProfile(true); }} onSave={() => void handleLogin()} onCancel={() => { setNicknameInput(nickname); setEditingProfile(false); clearError(); }} onLogout={() => void handleLogout()} onChange={setNicknameInput} />}
       </header>
 
       {error && errorScope === 'global' && <div className="alert" role="alert"><CircleAlert size={17} /><span>{error}</span><button className="icon-button" onClick={clearError} aria-label="Fermer"><X size={18} /></button></div>}
-      <InstallPrompt />
+      {!room && <InstallPrompt />}
 
       {!nickname ? (
         <section className="welcome-layout">
-          <div className="welcome-copy">
-            <div className="kicker-row"><span className="signal-status-mark active" /> TERRAIN EN DIRECT</div>
-            <h1 className="display-title">Lis le<br /><em>signal.</em></h1>
-            <p className="lead">HUNT transforme votre ville en terrain de poursuite. Chaque joueur émet une balise, chaque seconde compte.</p>
-            <div className="trace-note"><span className="trace-line" /><span>Marseille · réseau privé · position chiffrée</span></div>
-          </div>
-          <section className="panel entry-card">
-            <div className="entry-card-heading"><span className="entry-index">01</span><span className="muted">Avant d’entrer sur le terrain</span></div>
-            <Target className="entry-target" size={31} strokeWidth={1.5} />
-            <p className="kicker">TON INDICATIF</p>
-            <h2>Choisis ton nom de piste.</h2>
-            <p className="muted">Un pseudo suffit. La localisation ne sera demandée qu’une fois dans une chasse.</p>
-            <label className="field-label" htmlFor="nickname">Indicatif</label>
-            <input id="nickname" placeholder="Ex. Nova" value={nicknameInput} maxLength={24} onChange={(event) => setNicknameInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void handleLogin(); }} autoComplete="nickname" autoFocus />
+          <div className="welcome-copy"><p className="eyebrow"><span className="rec-dot" /> LE TERRAIN, C’EST TA VILLE.</p><h1>La chasse<br />commence ici.</h1><p className="lead-small">Réunis ton escouade.<br />Retrouvez-vous sur le terrain.</p></div>
+          <form className="entry-card" onSubmit={(event) => { event.preventDefault(); void handleLogin(); }}>
+            <label className="field-label" htmlFor="nickname">Ton pseudo</label>
+            <input id="nickname" placeholder="Comment on t’appelle ?" value={nicknameInput} minLength={2} maxLength={24} required onChange={(event) => setNicknameInput(event.target.value)} autoComplete="nickname" />
             {error && errorScope === 'profile' && <ActionError message={error} onDismiss={clearError} />}
-            <button className="button button-primary button-wide" disabled={busy} onClick={() => void handleLogin()}>{busy ? 'Connexion…' : 'Entrer sur le terrain'}<ArrowRight size={17} /></button>
-            <small className="form-note"><ShieldCheck size={13} /> Session anonyme, position visible uniquement dans ta chasse.</small>
-          </section>
+            <button type="submit" className="button button-primary button-wide" disabled={busy}>{busy ? 'Connexion…' : 'Entrer dans HUNT'}<ArrowRight size={18} /></button>
+            <p className="privacy-note"><ShieldCheck size={14} /> Ta position se partage uniquement dans ta chasse.</p>
+          </form>
         </section>
       ) : !room ? (
         <section className="command-view">
-          <div className="page-intro"><p className="kicker">{nickname}</p><h1>Choisis une chasse.</h1><p className="lead-small">Crée une partie ou rejoins ton escouade.</p></div>
+          <div className="page-intro"><p className="greeting">Salut, {nickname}.</p><h1>Choisis<br />une chasse.</h1><p className="lead-small">Ton escouade. Ta ville. Votre terrain.</p></div>
           <div className="command-actions">
             <section className="primary-action">
-              <button className="button button-primary button-wide" disabled={busy} onClick={() => void handleCreate()}>Créer une chasse <ArrowRight size={17} /></button>
-              <p className="action-note">Ouvre un terrain privé et partage son code avec ton escouade.</p>
+              <button className="button button-primary button-wide" disabled={busy} onClick={() => void handleCreate()}>{busy ? 'Connexion…' : 'Créer une chasse'}<ArrowRight size={18} /></button>
               {error && errorScope === 'create' && <ActionError message={error} onRetry={() => void handleCreate()} onDismiss={clearError} />}
             </section>
-            <section className="join-action">
-              <p className="join-label">ou rejoindre avec un code</p>
-              <div className="join-row"><input id="join-code" aria-label="Code de chasse" placeholder="ABC123" value={joinCode} maxLength={6} onChange={(event) => setJoinCode(event.target.value.replace(/[^a-z0-9]/gi, '').toUpperCase())} onKeyDown={(event) => { if (event.key === 'Enter' && joinCode.length === 6) void handleJoin(); }} /><button className="button button-soft" disabled={busy || joinCode.length !== 6} onClick={() => void handleJoin()} aria-label="Rejoindre la chasse"><ArrowRight size={18} /></button></div>
+            <form className="join-action" onSubmit={(event) => { event.preventDefault(); if (joinCode.length === 6) void handleJoin(); }}>
+              <label className="join-label" htmlFor="join-code">Déjà un code ?</label>
+              <div className="join-row"><input id="join-code" placeholder="CODE DE CHASSE" value={joinCode} maxLength={6} minLength={6} required autoComplete="off" autoCapitalize="characters" spellCheck={false} onChange={(event) => setJoinCode(event.target.value.replace(/[^a-z0-9]/gi, '').toUpperCase())} /><button type="submit" className="button button-soft" disabled={busy || joinCode.length !== 6} aria-label="Rejoindre la chasse"><ArrowRight size={20} /></button></div>
               {error && errorScope === 'join' && <ActionError message={error} onRetry={() => void handleJoin()} onDismiss={clearError} />}
-            </section>
+            </form>
           </div>
-          <p className="privacy-note"><ShieldCheck size={14} /> Position visible uniquement dans ta chasse.</p>
+          <p className="privacy-note"><ShieldCheck size={14} /> Terrain privé. Position visible par ton escouade.</p>
+          <div className="entry-location"><span className="rec-dot" /> MARSEILLE <span>43.2965° N · 5.3698° E</span></div>
         </section>
       ) : (
-        <section className="lobby-view">
-          <section className="field-map-shell">
-            <div className="field-map-header"><div><p className="kicker">CHASSE EN DIRECT</p><h1><span className="code-mark">{room.code}</span><span className="map-title-label"> · {snapshot.members.length} dans l’escouade</span></h1></div><div className="network-state"><span className={`signal-status-mark ${syncing ? 'requesting' : 'active'}`} />{syncing ? 'Réception…' : 'Réseau à jour'}</div></div>
-            <div className="map-wrap"><MapView key={room.id} locations={recentLocations} me={userId} recenterSignal={recenterSignal} /><div className="map-overlay"><span className="map-live"><span className="signal-status-mark active" /> LIVE</span><span className="map-readout"><MapPin size={13} /> {activeLocationCount} balise{activeLocationCount > 1 ? 's' : ''} active{activeLocationCount > 1 ? 's' : ''}</span></div><button className={`map-beacon-action ${gps.state === 'active' || gps.state === 'requesting' ? 'active' : ''}`} onClick={() => void (gps.state === 'active' || gps.state === 'requesting' ? gps.stop() : gps.start())} aria-label={gps.state === 'active' || gps.state === 'requesting' ? 'Couper ma balise et arrêter le partage de localisation' : 'Émettre ma balise et partager ma localisation'}>{gps.state === 'active' || gps.state === 'requesting' ? <Radio size={16} /> : <Signal size={16} />}<span>{gps.state === 'active' || gps.state === 'requesting' ? 'Couper ma balise' : 'Émettre ma balise'}</span></button><button className="map-recenter" onClick={() => setRecenterSignal((value) => value + 1)} aria-label="Me retrouver sur la carte"><Crosshair size={17} /><span>Me retrouver</span></button><div className="map-empty-readout">{activeLocationCount === 0 ? 'Aucun signal récent sur la carte' : 'Les signaux de plus de 45 s quittent la carte'}</div></div>
-            <div className="map-footer"><span><i className="legend-dot own" /> Ta balise</span><span><i className="legend-dot squad" /> Escouade</span><span className="map-expiry">La liste conserve les derniers signaux connus</span></div>
-          </section>
+        <section className="lobby-view" aria-label="Lobby de la chasse">
+          <div className="field-map-shell">
+            <MapView key={room.id} locations={recentLocations} me={userId} recenterSignal={recenterSignal} />
+            <div className="field-map-header"><div className="room-identity"><p className="eyebrow">CHASSE PRIVÉE</p><h1>{room.code}</h1></div><CopyButton value={room.code} label="Copier le code" /></div>
+            <div className="map-live"><span className="rec-dot" /><span>{syncing ? 'Actualisation' : 'En direct'} · {activeLocationCount} balise{activeLocationCount > 1 ? 's' : ''}</span></div>
+            {activeLocationCount === 0 && <p className="map-empty-readout">Marseille · En attente des premières positions</p>}
+            <button className="map-recenter" onClick={() => setRecenterSignal((value) => value + 1)} aria-label="Centrer sur ma position"><Crosshair size={21} /></button>
+          </div>
 
-          <aside className="panel squad-sheet"><div className="sheet-handle" aria-hidden="true" /><div className="sheet-heading"><div><p className="kicker">ESCOUADE</p><h2>Les signaux du terrain</h2></div><div className="sheet-count">{activeLocationCount}/{snapshot.members.length}</div></div><div className="share-beacon"><div><small>CODE DE BALISE</small><strong>{room.code}</strong></div><CopyButton value={room.code} label="Partager" /></div>
-            <div className={`beacon-panel ${gps.state}`}><div className="beacon-heading"><div><p className="kicker">MA BALISE</p><SignalStatus state={gps.state} accuracy={gps.accuracy} lastUpdate={gps.lastUpdate} errorMessage={gps.errorMessage} /></div><div className={`beacon-icon ${gps.state}`}><Radio size={19} /></div></div><button className={`button button-wide ${gps.state === 'active' ? 'button-danger' : 'button-primary'}`} onClick={() => void (gps.state === 'active' || gps.state === 'requesting' ? gps.stop() : gps.start())}>{gps.state === 'active' ? 'Couper ma balise' : 'Émettre ma balise'}<Signal size={16} /></button><label className="precision-option"><input type="checkbox" checked={preciseLocationAllowed} onChange={(event) => setPreciseLocationAllowed(event.target.checked)} /><span><strong>Autoriser la meilleure précision disponible</strong><small>HUNT la demande ; le navigateur et le système décident du niveau réel.</small></span></label></div>
-            <div className="squad-section"><div className="list-heading"><div><p className="kicker">PRÉSENCE</p><h3>Escouade</h3></div><span>{activeLocationCount} signal{activeLocationCount > 1 ? 's' : ''} récent{activeLocationCount > 1 ? 's' : ''}</span></div><ul className="members">{snapshot.members.map((member) => { const location = snapshot.locations.find((item) => item.user_id === member.user_id); const fresh = Boolean(location && Date.now() - new Date(location.updated_at).getTime() < 45_000); return <li key={member.user_id}><span className={`member-avatar ${fresh ? 'online' : ''}`}>{(member.profiles?.nickname ?? 'Joueur').slice(0, 1).toUpperCase()}</span><div><strong>{member.profiles?.nickname ?? 'Joueur'}{member.user_id === userId && <span className="you-tag">toi</span>}</strong><small>{fresh ? `Signal reçu · ${formatAge(location?.updated_at)} · ±${Math.round(location?.accuracy ?? 0)} m` : location ? `Dernier signal · ${formatAge(location.updated_at)}` : 'Balise silencieuse'}</small></div><span className={`presence-dot ${fresh ? 'online' : ''}`} /></li>; })}</ul></div>
-            <div className="sidebar-footer"><button className="button button-ghost button-wide" disabled={busy} onClick={() => void handleExit()}>{room.owner_id === userId ? 'Fermer la chasse' : 'Quitter la chasse'}</button><small><Wifi size={12} /> Position privée au lobby · pas de fausse trace historique.</small></div>
+          <aside className={`squad-sheet ${squadExpanded ? 'expanded' : ''}`} aria-label="Escouade">
+            <button className="sheet-toggle" disabled={desktopLobby} onClick={() => setSquadExpanded((value) => !value)} aria-expanded={squadExpanded || desktopLobby} aria-controls="squad-content"><span className="sheet-handle" aria-hidden="true" /><span className="sheet-heading"><span>Escouade <small>{snapshot.members.length}</small></span><ChevronDown size={19} /></span><span className="sr-only">{squadExpanded ? 'Réduire' : 'Développer'} le panneau</span></button>
+            <div className="squad-content" id="squad-content">
+              <div className="beacon-row"><SignalStatus state={gps.state} accuracy={gps.accuracy} lastUpdate={gps.lastUpdate} errorMessage={gps.errorMessage} /><button className={`beacon-switch ${sharing ? 'active' : ''}`} role="switch" aria-checked={sharing} aria-label="Partager ma position avec l’escouade" onClick={() => void (sharing ? gps.stop() : gps.start())}><span /></button></div>
+              <ul className="members">{snapshot.members.map((member) => {
+                const location = snapshot.locations.find((item) => item.user_id === member.user_id);
+                const fresh = Boolean(location && Date.now() - new Date(location.updated_at).getTime() < 45_000);
+                const own = member.user_id === userId;
+                return <li key={member.user_id}><span className={`member-avatar ${own ? 'self' : ''} ${fresh ? 'online' : ''}`}>{(member.profiles?.nickname ?? 'Joueur').slice(0, 1).toUpperCase()}</span><div><strong>{member.profiles?.nickname ?? 'Joueur'}{own && <span className="you-tag">toi</span>}</strong><small>{fresh ? `${formatAge(location?.updated_at)} · ±${location?.accuracy == null ? '—' : Math.round(location.accuracy)} m` : location ? `Dernier signal · ${formatAge(location.updated_at)}` : 'En attente de position'}</small></div><span className={`presence-dot ${fresh ? 'online' : ''} ${own ? 'self' : ''}`} aria-label={fresh ? 'Position récente' : 'Sans position récente'} /></li>;
+              })}</ul>
+              {snapshot.members.length === 0 && <p className="squad-empty">Connexion à l’escouade…</p>}
+              <div className="sheet-details">
+                <div className="precision-option"><ShieldCheck size={18} /><span><strong>Localisation précise</strong><small>HUNT demande la meilleure précision disponible. Active « Position exacte » dans les réglages de ton appareil.</small></span></div>
+                <p className="precision-note">La précision affichée dépend du GPS et de ton environnement.</p>
+                <button className="button button-exit button-wide" disabled={busy} onClick={() => void handleExit()}><LogOut size={16} />{room.owner_id === userId ? 'Fermer la chasse' : 'Quitter la chasse'}</button>
+              </div>
+            </div>
           </aside>
         </section>
       )}
