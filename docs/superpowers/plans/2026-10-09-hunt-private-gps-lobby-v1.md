@@ -147,11 +147,12 @@ git add hooks/use-geolocation.ts components/MapView.tsx app/page.tsx lib/locatio
 git commit -m "fix: keep live location accurate and stoppable"
 ```
 
-### Task 4: Two-player browser proof and production rollout
+### Task 4: Two-player browser proof and operator guide (controller owns production rollout)
 
 **Files:**
 - Create: `playwright.config.ts`
 - Create: `tests/e2e/private-lobby.spec.ts`
+- Modify: `.gitignore`
 - Modify: `package.json`
 - Modify: `README.md`
 
@@ -177,11 +178,11 @@ Keep browser fixtures isolated from production data. Document manual test on two
 Run: `npm test`; `npx playwright test`; `npm run typecheck`; `npm run build`; `git diff --check`.
 Expected: exit 0 for every command; reviewer confirms spec coverage and no unintended data reset, secret exposure, or location leakage.
 
-- [ ] **Step 5: Apply and verify production database migration**
+- [ ] **Step 5: Apply and verify production database migration — controller-owned, not part of delegated Task 4**
 
 Confirm linked Supabase project matches production `NEXT_PUBLIC_SUPABASE_URL`; inspect migration list and `db push --dry-run`. If target differs, migration history is ambiguous, or preview shows any table/data drop, stop before applying. Otherwise apply only the reviewed forward migration and run linked rollback-scoped SQL contract tests. Verify create/join/stop/leave/close inside rollback-scoped SQL so production has no test lobbies or persistent test identities.
 
-- [ ] **Step 6: Deploy and verify Vercel production**
+- [ ] **Step 6: Deploy and verify Vercel production — controller-owned, not part of delegated Task 4**
 
 Run: `vercel project inspect --non-interactive`; `vercel deploy --prod --yes`; `vercel inspect <returned-deployment-url>`.
 Expected: exact project `hunt-lobby`, production target, `Ready`, alias `https://hunt-lobby.vercel.app`; then smoke-check UI load. Keep synthetic identities and positions in local browser fixtures, not production data.
@@ -189,6 +190,6 @@ Expected: exact project `hunt-lobby`, production target, `Ready`, alias `https:/
 - [ ] **Step 7: Commit the browser proof and operator guide**
 
 ```powershell
-git add package.json package-lock.json playwright.config.ts tests/e2e/private-lobby.spec.ts README.md
+git add .gitignore package.json package-lock.json playwright.config.ts tests/e2e/private-lobby.spec.ts README.md docs/superpowers/plans/2026-10-09-hunt-private-gps-lobby-v1.md
 git commit -m "test: verify private lobby on two mobile clients"
 ```
