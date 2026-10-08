@@ -143,7 +143,7 @@ Expected: all tests pass and TypeScript exits 0.
 - [ ] **Step 5: Commit the location slice**
 
 ```powershell
-git add hooks/use-geolocation.ts components/MapView.tsx app/page.tsx lib/location-freshness.cjs tests/location-freshness.test.cjs tests/geolocation-lifecycle.test.cjs
+git add hooks/use-geolocation.ts components/MapView.tsx app/page.tsx lib/location-freshness.cjs lib/location-watch.cjs tests/location-freshness.test.cjs tests/geolocation-lifecycle.test.cjs docs/superpowers/plans/2026-10-09-hunt-private-gps-lobby-v1.md
 git commit -m "fix: keep live location accurate and stoppable"
 ```
 
