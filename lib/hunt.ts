@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { LobbySnapshot, Member, PlayerLocation, Profile, Room } from './types';
+const { normalizeRoomCode } = require('./active-room.cjs') as { normalizeRoomCode: (code: string) => string };
 
 function requireClient() {
   if (!supabase) throw new Error('Supabase n’est pas configuré.');
@@ -54,7 +55,9 @@ export async function createRoom() {
 
 export async function joinRoom(code: string) {
   const client = requireClient();
-  const { data: roomId, error } = await client.rpc('join_room', { p_code: code });
+  const normalizedCode = normalizeRoomCode(code);
+  if (!/^[A-Z0-9]{6}$/.test(normalizedCode)) throw new Error('Entre un code de chasse valide à six caractères.');
+  const { data: roomId, error } = await client.rpc('join_room', { p_code: normalizedCode });
   if (error) throw error;
   if (!roomId) throw new Error('Lobby introuvable.');
   const room = await getRoom(roomId as string);

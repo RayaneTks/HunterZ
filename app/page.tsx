@@ -9,10 +9,29 @@ import { closeRoom, createRoom, ensureAnonymousSession, getProfile, getRoom, joi
 import { supabase } from '../lib/supabase';
 import type { LobbySnapshot, Room } from '../lib/types';
 const { messageFromError } = require('../lib/error-message.cjs') as { messageFromError: (error: unknown) => string };
+type ActiveRoomStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+const {
+  clearActiveRoom,
+  createAndActivateRoom,
+  joinAndActivateRoom,
+  restoreActiveRoom,
+} = require('../lib/active-room.cjs') as {
+  clearActiveRoom: (storage: ActiveRoomStorage | null) => void;
+  createAndActivateRoom: (create: typeof createRoom, ownerId: string, storage: ActiveRoomStorage | null, setRoom: (room: Room | null) => void) => Promise<Room>;
+  joinAndActivateRoom: (code: string, join: typeof joinRoom, storage: ActiveRoomStorage | null, setRoom: (room: Room | null) => void) => Promise<Room>;
+  restoreActiveRoom: (storage: ActiveRoomStorage | null, getRoomById: typeof getRoom, setRoom: (room: Room | null) => void, isCurrent?: () => boolean) => Promise<Room | null>;
+};
 
 const MapView = dynamic(() => import('../components/MapView'), { ssr: false });
-const ROOM_STORAGE_KEY = 'hunt:active-room';
 type ErrorScope = 'global' | 'profile' | 'create' | 'join';
+
+function activeRoomStorage(): ActiveRoomStorage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
 
 function formatAge(timestamp: number | string | null | undefined) {
   if (!timestamp) return 'Aucun signal reçu';
@@ -131,19 +150,9 @@ export default function Home() {
           setNicknameInput(profile.nickname);
         }
 
-        const savedRoom = window.localStorage.getItem(ROOM_STORAGE_KEY);
-        if (savedRoom) {
-          try {
-            const parsed = JSON.parse(savedRoom) as { id?: string };
-            if (parsed.id) {
-              const restored = await getRoom(parsed.id);
-              if (restored && !cancelled) setRoom(restored);
-              else window.localStorage.removeItem(ROOM_STORAGE_KEY);
-            }
-          } catch {
-            window.localStorage.removeItem(ROOM_STORAGE_KEY);
-          }
-        }
+        await restoreActiveRoom(activeRoomStorage(), getRoom, (restored) => {
+          if (!cancelled && restored) setRoom(restored);
+        }, () => !cancelled);
       } catch (bootError) {
         if (!cancelled) showError(messageFromError(bootError));
       } finally {
@@ -217,10 +226,7 @@ export default function Home() {
     setBusy(true);
     clearError();
     try {
-      const created = await createRoom();
-      const nextRoom = { ...created, owner_id: userId };
-      setRoom(nextRoom);
-      window.localStorage.setItem(ROOM_STORAGE_KEY, JSON.stringify(nextRoom));
+      await createAndActivateRoom(createRoom, userId, activeRoomStorage(), setRoom);
     } catch (createError) {
       showError(messageFromError(createError), 'create');
     } finally {
@@ -232,9 +238,7 @@ export default function Home() {
     setBusy(true);
     clearError();
     try {
-      const nextRoom = await joinRoom(joinCode);
-      setRoom(nextRoom);
-      window.localStorage.setItem(ROOM_STORAGE_KEY, JSON.stringify(nextRoom));
+      await joinAndActivateRoom(joinCode, joinRoom, activeRoomStorage(), setRoom);
       setJoinCode('');
     } catch (joinError) {
       showError(messageFromError(joinError), 'join');
@@ -251,7 +255,7 @@ export default function Home() {
       await gps.stop();
       if (room.owner_id === userId) await closeRoom(room.id);
       else await leaveRoom(room.id);
-      window.localStorage.removeItem(ROOM_STORAGE_KEY);
+      clearActiveRoom(activeRoomStorage());
       setRoom(null);
       setSnapshot({ members: [], locations: [] });
     } catch (exitError) {
@@ -270,7 +274,7 @@ export default function Home() {
         else await leaveRoom(room.id);
       }
       await supabase?.auth.signOut();
-      window.localStorage.removeItem(ROOM_STORAGE_KEY);
+      clearActiveRoom(activeRoomStorage());
       setRoom(null);
       setSnapshot({ members: [], locations: [] });
       setUserId('');
