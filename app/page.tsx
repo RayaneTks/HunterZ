@@ -14,11 +14,13 @@ const {
   clearActiveRoom,
   createAndActivateRoom,
   joinAndActivateRoom,
+  refreshRoomMetadata,
   restoreActiveRoom,
 } = require('../lib/active-room.cjs') as {
   clearActiveRoom: (storage: ActiveRoomStorage | null) => void;
   createAndActivateRoom: (create: typeof createRoom, ownerId: string, storage: ActiveRoomStorage | null, setRoom: (room: Room | null) => void) => Promise<Room>;
   joinAndActivateRoom: (code: string, join: typeof joinRoom, storage: ActiveRoomStorage | null, setRoom: (room: Room | null) => void) => Promise<Room>;
+  refreshRoomMetadata: (room: Room, getRoomById: typeof getRoom) => Promise<Room>;
   restoreActiveRoom: (storage: ActiveRoomStorage | null, getRoomById: typeof getRoom, setRoom: (room: Room | null) => void, isCurrent?: () => boolean) => Promise<Room | null>;
 };
 
@@ -191,6 +193,30 @@ export default function Home() {
       void client.removeChannel(channel);
     };
   }, [room, refreshLobby]);
+
+  useEffect(() => {
+    if (!room || room.owner_id !== null) return;
+    let cancelled = false;
+    let refreshing = false;
+    const refreshMetadata = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        const refreshed = await refreshRoomMetadata(room, getRoom);
+        if (!cancelled && refreshed.owner_id !== null) setRoom(refreshed);
+      } catch {
+        // Keep the recoverable lobby and retry without issuing join_room again.
+      } finally {
+        refreshing = false;
+      }
+    };
+    void refreshMetadata();
+    const retry = window.setInterval(() => void refreshMetadata(), 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(retry);
+    };
+  }, [room]);
 
   useEffect(() => {
     if (!room) return;

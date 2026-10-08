@@ -76,10 +76,11 @@ git commit -m "fix: make lobby creation work with secure search path"
 - Create: `tests/hunt-lobby.test.cjs`
 - Modify: `app/page.tsx:126-266,316-324`
 - Modify: `lib/hunt.ts:46-54,61-67`
+- Modify: `lib/types.ts`
 
 **Interfaces:**
 - Consumes: Task 1 RPC result `{ room_id, room_code }` and current `Room` type.
-- Produces: `saveActiveRoom(storage, room): boolean`, `readActiveRoom(storage): Room | null`, `clearActiveRoom(storage): void`; `createRoom(): Promise<{id:string; code:string}>` remains unchanged.
+- Produces: `saveActiveRoom(storage, room): boolean`, `readActiveRoom(storage): Room | null`, `clearActiveRoom(storage): void`; `Room.owner_id` may be `null` until metadata refresh; `createRoom(): Promise<{id:string; code:string}>` remains unchanged.
 
 - [ ] **Step 1: Write storage and client regression tests**
 
@@ -92,7 +93,7 @@ Expected: FAIL because safe storage/client behavior is not implemented yet.
 
 - [ ] **Step 3: Implement safe room persistence and transitions**
 
-Implement the three `lib/active-room.cjs` functions with injected Storage-like objects and guarded JSON parsing. In `app/page.tsx`, commit returned room to React state before best-effort persistence; storage failure must not report an RPC failure. Apply the same behavior to join. On restore, verify current session membership through `getRoom`; clear malformed or inaccessible saved state. Preserve six-character code normalization and render retryable errors.
+Implement the `lib/active-room.cjs` functions with injected Storage-like objects and guarded JSON parsing. In `app/page.tsx`, commit returned room to React state before best-effort persistence; storage failure must not report an RPC failure. Apply the same behavior to join. After successful `join_room`, persist returned room ID plus normalized code even if `getRoom` fails, then refresh owner metadata in background without repeating join RPC. Keep owner-only controls unavailable while `owner_id` is unknown. On restore, verify current session membership through `getRoom`; clear malformed or inaccessible saved state. Preserve six-character code normalization and render retryable errors.
 
 - [ ] **Step 4: Run focused and full client tests**
 

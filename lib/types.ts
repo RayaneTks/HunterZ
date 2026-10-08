@@ -6,7 +6,7 @@ export type Profile = {
 export type Room = {
   id: string;
   code: string;
-  owner_id: string;
+  owner_id: string | null;
 };
 
 export type Member = {

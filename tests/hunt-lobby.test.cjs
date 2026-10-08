@@ -79,6 +79,52 @@ test('join_survives_unavailable_storage', async () => {
   assert.deepEqual(joined, room);
 });
 
+test('getRoom_fails_after_successful_join_keeps_recoverable_lobby', async () => {
+  let joinCalls = 0;
+  let metadataReads = 0;
+  const state = { room: null };
+  const storage = memoryStorage();
+  const joinedRoom = await api('joinRoomWithMetadata')(
+    ' ab12cd ',
+    async (code) => {
+      joinCalls += 1;
+      assert.equal(code, 'AB12CD');
+      return room.id;
+    },
+    async () => {
+      metadataReads += 1;
+      throw new Error('metadata temporarily unavailable');
+    },
+  );
+
+  assert.deepEqual(joinedRoom, { id: room.id, code: 'AB12CD', owner_id: null });
+  await api('joinAndActivateRoom')('AB12CD', async () => joinedRoom, storage, (nextRoom) => { state.room = nextRoom; });
+  assert.deepEqual(state.room, joinedRoom);
+  assert.deepEqual(JSON.parse(storage.values.get('hunt:active-room')), joinedRoom);
+
+  const refreshedRoom = await api('refreshRoomMetadata')(state.room, async (id) => {
+    metadataReads += 1;
+    assert.equal(id, room.id);
+    return room;
+  });
+  state.room = refreshedRoom;
+  assert.deepEqual(state.room, room);
+  assert.equal(joinCalls, 1, 'metadata retry must not call join_room again');
+  assert.equal(metadataReads, 2);
+});
+
+test('failed_join_does_not_lookup_room_metadata', async () => {
+  let metadataReads = 0;
+  await assert.rejects(
+    api('joinRoomWithMetadata')('AB12CD', async () => { throw new Error('join RPC failed'); }, async () => {
+      metadataReads += 1;
+      return room;
+    }),
+    /join RPC failed/,
+  );
+  assert.equal(metadataReads, 0);
+});
+
 test('rpc_error_is_recoverable_without_saving_room', async () => {
   const state = { room: null };
   const storage = memoryStorage();

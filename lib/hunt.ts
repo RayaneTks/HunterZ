@@ -1,6 +1,8 @@
 import { supabase } from './supabase';
 import type { LobbySnapshot, Member, PlayerLocation, Profile, Room } from './types';
-const { normalizeRoomCode } = require('./active-room.cjs') as { normalizeRoomCode: (code: string) => string };
+const { joinRoomWithMetadata } = require('./active-room.cjs') as {
+  joinRoomWithMetadata: (code: string, joinRpc: (normalizedCode: string) => Promise<string | null>, lookupRoom: (roomId: string) => Promise<Room | null>) => Promise<Room>;
+};
 
 function requireClient() {
   if (!supabase) throw new Error('Supabase n’est pas configuré.');
@@ -55,14 +57,11 @@ export async function createRoom() {
 
 export async function joinRoom(code: string) {
   const client = requireClient();
-  const normalizedCode = normalizeRoomCode(code);
-  if (!/^[A-Z0-9]{6}$/.test(normalizedCode)) throw new Error('Entre un code de chasse valide à six caractères.');
-  const { data: roomId, error } = await client.rpc('join_room', { p_code: normalizedCode });
-  if (error) throw error;
-  if (!roomId) throw new Error('Lobby introuvable.');
-  const room = await getRoom(roomId as string);
-  if (!room) throw new Error('Ce lobby est fermé ou inaccessible.');
-  return room;
+  return joinRoomWithMetadata(code, async (normalizedCode) => {
+    const { data: roomId, error } = await client.rpc('join_room', { p_code: normalizedCode });
+    if (error) throw error;
+    return roomId as string | null;
+  }, getRoom);
 }
 
 export async function leaveRoom(roomId: string) {
