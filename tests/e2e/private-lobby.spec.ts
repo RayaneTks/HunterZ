@@ -147,6 +147,14 @@ async function createMobileContext(browser: Browser, fixture: LobbyFixture, iden
   const context = await browser.newContext({
     ...({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }),
   });
+  await context.routeWebSocket(/.*/, (socket) => {
+    const url = new URL(socket.url());
+    if (url.hostname !== '127.0.0.1' || url.port !== '54321') {
+      socket.close(1008, 'External WebSockets are blocked in this test');
+      return;
+    }
+    socket.close(1000, 'Realtime is disabled in the deterministic fixture');
+  });
   await context.grantPermissions(permissions, { origin: baseURL });
   await fixture.install(context, identity);
   return { context, page: await context.newPage() };
