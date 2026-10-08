@@ -84,7 +84,7 @@ git commit -m "fix: make lobby creation work with secure search path"
 
 - [ ] **Step 1: Write storage and client regression tests**
 
-Add tests `creation_survives_unavailable_storage`, `malformed_saved_room_is_removed`, `valid_saved_room_restores`, `join_rejects_invalid_or_closed_code`, and `rpc_error_is_recoverable`. Assert no room is stored on RPC failure and successful RPC result survives storage exceptions in in-memory UI state.
+Add tests `creation_survives_unavailable_storage`, `malformed_saved_room_is_removed`, `valid_saved_room_restores`, `join_rejects_invalid_or_closed_code`, `rpc_error_is_recoverable`, and `join_keeps_confirmed_membership_when_metadata_lookup_fails`. Assert no room is stored on RPC failure and successful RPC result survives storage exceptions in in-memory UI state.
 
 - [ ] **Step 2: Run focused tests and confirm failure**
 
@@ -103,7 +103,7 @@ Expected: all named cases and all existing tests pass.
 - [ ] **Step 5: Commit the client lifecycle slice**
 
 ```powershell
-git add app/page.tsx lib/hunt.ts lib/active-room.cjs tests/active-room.test.cjs tests/hunt-lobby.test.cjs
+git add app/page.tsx lib/hunt.ts lib/types.ts lib/active-room.cjs tests/active-room.test.cjs tests/hunt-lobby.test.cjs docs/superpowers/plans/2026-10-09-hunt-private-gps-lobby-v1.md
 git commit -m "fix: preserve lobby state across browser failures"
 ```
 
