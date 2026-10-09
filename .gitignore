@@ -13,3 +13,5 @@ supabase/.temp
 
 /.superpowers/
 /graphify-out/
+
+/test-results-production/

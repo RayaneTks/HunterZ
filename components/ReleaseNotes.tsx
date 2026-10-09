@@ -83,7 +83,7 @@ export default function ReleaseNotes() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [open]);
 
-  if (!visible || !release?.isVercelDeployment) return null;
+  if (!visible || inMatch || !release?.isVercelDeployment) return null;
 
   function dismiss() {
     try {

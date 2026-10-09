@@ -18,7 +18,7 @@ test('four players confirm roles, start, intercept and rematch through PostgreSQ
     if(path==='room_members')return (await db.query("select user_id,jsonb_build_object('nickname',profiles.nickname) as profiles from room_members join profiles on profiles.id=room_members.user_id where room_id=$1",[room])).rows;
     if(path==='positions')return (await db.query('select * from positions where room_id=$1',[room])).rows;
     if(path==='rpc/get_match')return (await db.query('select get_match($1) as value',[body.p_room])).rows[0].value;
-    if(path==='rpc/hunt_match_action')return (await db.query('select hunt_match_action($1,$2,$3,$4,$5,$6) as value',[body.p_room,body.p_action,body.p_target,body.p_ready,body.p_request,body.p_action_id])).rows[0].value;
+    if(path==='rpc/hunt_match_action')return (await db.query('select hunt_match_action($1,$2,$3,$4,$5,$6,$7) as value',[body.p_room,body.p_action,body.p_target,body.p_ready,body.p_request,body.p_action_id,body.p_match_id])).rows[0].value;
     if(path==='rpc/publish_location'){await db.query('select publish_location($1,$2,$3,$4)',[body.p_room_id,body.p_latitude,body.p_longitude,body.p_accuracy]);return null;}
     if(path==='rpc/stop_sharing'){await db.query('select stop_sharing($1)',[body.p_room]);return null;}
     throw new Error(`Unhandled ${path}`);
@@ -28,20 +28,31 @@ test('four players confirm roles, start, intercept and rematch through PostgreSQ
  }
  const pages=await Promise.all(contexts.map(c=>c.newPage()));await Promise.all(pages.map(p=>p.goto('/')));
  await pages[0].getByRole('button',{name:/Développer le panneau/}).click();
+ await pages[0].screenshot({path:'docs/validation/2026-10-09/lobby.png',fullPage:true});
  await pages[0].getByLabel('Qui veut jouer la cible ?').selectOption(ids[1]);await pages[0].getByRole('button',{name:'Préparer la manche'}).click();
  for(let i=0;i<4;i++){
   await expect(pages[i].getByRole('heading',{name:i===1?'Tu es la cible.':'Tu es chasseur.'})).toBeVisible();
+  if(i===1){await expect(pages[i].getByRole('heading',{name:'Tu es la cible.'})).toBeVisible();await pages[i].screenshot({path:'docs/validation/2026-10-09/briefing.png',fullPage:true});}
   await pages[i].getByRole('button',{name:'Activer le GPS'}).click();await pages[i].getByRole('button',{name:'Continuer vers l’autorisation'}).click();
   const ready=pages[i].getByRole('button',{name:i===1?'J’accepte de jouer la cible':'Je suis prêt'});await expect(ready).toBeEnabled();await ready.click();
  }
  await expect(pages[0].getByRole('button',{name:'Lancer la manche'})).toBeEnabled();await pages[0].getByRole('button',{name:'Lancer la manche'}).click();
  await expect(pages[0].getByRole('heading',{name:'La piste arrive.'})).toBeVisible();
+ await expect(pages[0].locator('.match-map .maplibregl-canvas')).toBeVisible();
+ await expect(pages[0].getByRole('button',{name:'Découvrir',exact:true})).toHaveCount(0);
+ await expect.poll(()=>pages[0].evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await pages[0].screenshot({path:'docs/validation/2026-10-09/match.png',fullPage:true});
  await serial(async()=>{await db.exec('reset role');await db.exec('update hunt_matches set elapsed_seconds=40,segment_started_at=now()');});
  for(let i=0;i<4;i++)await contexts[i].setGeolocation({latitude:43.2965+i*.000001,longitude:5.3698,accuracy:8});
  await expect(pages[2].getByRole('button',{name:'Cible rencontrée'})).toBeEnabled();await pages[2].getByRole('button',{name:'Cible rencontrée'}).click();await pages[2].getByRole('button',{name:'Confirmer',exact:true}).click();
  await expect(pages[1].getByRole('button',{name:'Confirmer la rencontre'})).toBeVisible();await pages[1].getByRole('button',{name:'Confirmer la rencontre'}).click();
  for(const page of pages)await expect(page.getByRole('heading',{name:'L’équipe l’emporte.'})).toBeVisible();
+ await pages[0].screenshot({path:'docs/validation/2026-10-09/result.png',fullPage:true});
  await pages[0].getByLabel('Qui veut jouer la cible ?').selectOption(ids[2]);await pages[0].getByRole('button',{name:'Préparer la manche'}).click();
  await expect(pages[2].getByRole('heading',{name:'Tu es la cible.'})).toBeVisible();await expect(pages[2].getByRole('button',{name:'J’accepte de jouer la cible'})).toBeDisabled();
+ await serial(async()=>{await as(db,3);await db.query('select leave_room($1)',[room]);});
+ await expect(pages[0].getByRole('heading',{name:'On se retrouve.'})).toBeVisible();
+ await expect(pages[0].getByText('3 / 4–10 joueurs')).toBeVisible();
+ await expect(pages[0].getByRole('button',{name:'Préparer la manche'})).toBeDisabled();
  }finally{await Promise.all(contexts.map(c=>c.close()));await chain;await db.close();}
 });

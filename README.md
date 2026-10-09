@@ -135,3 +135,5 @@ npx playwright test --config playwright.production.config.ts
 ```
 
 `node scripts/serve-preview.cjs` sert l’export de production sur `http://127.0.0.1:4180`. Les captures de référence sont dans `docs/validation/2026-10-09/`. Aucun téléphone physique, réseau terrain ou déploiement de la migration n’est présumé validé par ces tests locaux.
+
+Rapport final : [validation de refonte](docs/validation/2026-10-09/VALIDATION.md). Ordre migration/publication, test de concurrence natif et retour arrière : [guide de livraison](docs/work/2026-10-mobile-release.md).

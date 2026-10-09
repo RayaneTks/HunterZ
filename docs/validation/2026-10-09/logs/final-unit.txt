@@ -1,0 +1,53 @@
+
+> hunt-lobby@0.1.0 test
+> node --test
+
+✔ valid_saved_room_restores_after_membership_lookup (4.4794ms)
+✔ saved_room_without_membership_is_cleared (0.8135ms)
+✔ malformed_saved_room_is_removed (0.6202ms)
+✔ empty_saved_room_is_removed (0.7593ms)
+✔ incomplete_saved_room_is_removed (5.8373ms)
+✔ storage_access_failures_do_not_escape (1.0028ms)
+✔ exposes a useful message from a Supabase-style error object (3.0703ms)
+✔ uses a safe fallback for unknown errors (0.4318ms)
+✔ permission denial leaves watch retryable (4.6218ms)
+✔ missing geolocation reports unavailable (0.8696ms)
+✔ restarting an active watch does not invalidate its callbacks (16.7086ms)
+✔ watch requests fresh high-accuracy fixes and retries transient write failures (8.1223ms)
+✔ invalid browser GPS timestamp cannot make position invisible or reject its database write (3.7976ms)
+✔ location writes stay ordered when network is slower than the GPS throttle (2.2674ms)
+✔ stop invalidates callbacks, waits for in-flight upsert, then removes position (3.798ms)
+✔ room change drains old writes and removes old position before starting new watch (1.917ms)
+✔ failed old-room removal remains visible after new-room write succeeds (2.3308ms)
+✔ creation_survives_unavailable_storage (4.9337ms)
+✔ join_rejects_invalid_code_without_calling_rpc (1.6166ms)
+✔ join_rejects_closed_lobby_and_keeps_join_retryable (1.4581ms)
+✔ join_survives_unavailable_storage (2.5004ms)
+✔ getRoom_fails_after_successful_join_keeps_recoverable_lobby (1.3427ms)
+✔ failed_join_does_not_lookup_room_metadata (0.692ms)
+✔ rpc_error_is_recoverable_without_saving_room (0.9224ms)
+✔ touch Mac is iPadOS with install help (3.6295ms)
+✔ embedded browsers explain how to open real browser (0.536ms)
+✔ native prompt only advertised when supplied (0.547ms)
+✔ installed app hides install affordance (0.3579ms)
+✔ position is fresh until 45 seconds, then expires (2.2232ms)
+✔ invalid and future positions are not fresh (2.6428ms)
+✔ La Piste runs server rules and protects target coordinates (2218.4292ms)
+✔ timeout has one result and disconnect cancels match (1384.5778ms)
+✔ finished match never republishes pending target GPS to lobby (1471.8834ms)
+✔ technical pause stops clock at signal deadline and extraction needs two fixes (1346.6623ms)
+✔ late polling honours earlier signal deadline instead of awarding timeout (1259.2445ms)
+✔ delayed confirmation cannot confirm another match role (1241.4056ms)
+✔ bad accuracy cannot refresh admissible target signal deadline (1293.0203ms)
+✔ forward migration matches canonical profile-read helper and policy (10.8877ms)
+✔ offers installation only when the browser exposes an install prompt (2.0805ms)
+✔ detects standalone display mode and iOS standalone mode (0.3867ms)
+✔ transaction contract uses same create_room definition as forward migration (7.5132ms)
+ℹ tests 41
+ℹ suites 0
+ℹ pass 41
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10651.5703

@@ -1,0 +1,26 @@
+[WebServer] (node:10764) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:27000) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:26348) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 11 tests using 1 worker
+
+(node:24884) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer]  ⚠ Cross origin request detected from 127.0.0.1 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+[WebServer] Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+  ok  1 [chromium-mobile] › tests\e2e\entry-fold.spec.ts:2:5 › main entry action stays visible on small phones (1.1s)
+  ok  2 [chromium-mobile] › tests\e2e\home-flow.spec.ts:2:5 › entry communicates how to play before requesting location (1.1s)
+  ok  3 [chromium-mobile] › tests\e2e\match-flow.spec.ts:3:5 › four players confirm roles, start, intercept and rematch through PostgreSQL (55.4s)
+  ok  4 [chromium-mobile] › tests\e2e\mobile-layout.spec.ts:3:7 › entry readable and touchable 320 (1.1s)
+  ok  5 [chromium-mobile] › tests\e2e\mobile-layout.spec.ts:3:7 › entry readable and touchable 390 (1.1s)
+  ok  6 [chromium-mobile] › tests\e2e\mobile-layout.spec.ts:3:7 › entry readable and touchable 844 (1.0s)
+  ok  7 [chromium-mobile] › tests\e2e\private-lobby.spec.ts:171:5 › two mobile players create, join, share, stop, leave, and close one private GPS lobby (25.9s)
+  ok  8 [chromium-mobile] › tests\e2e\private-lobby.spec.ts:269:5 › unknown authorization token is rejected instead of impersonating host (1.1s)
+  ok  9 [chromium-mobile] › tests\e2e\pwa-offline.spec.ts:2:5 › PWA registers an offline shell without caching private APIs (1.5s)
+  ok 10 [chromium-mobile] › tests\e2e\release-entry.spec.ts:4:7 › release never blocks first visit or invitation, storage blocked=false (1.1s)
+  ok 11 [chromium-mobile] › tests\e2e\release-entry.spec.ts:4:7 › release never blocks first visit or invitation, storage blocked=true (1.1s)
+
+  11 passed (1.7m)

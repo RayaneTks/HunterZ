@@ -1,6 +1,6 @@
 # HUNT — refonte mobile 2026, contrat de conception
 
-Statut : proposition complète pour revue, aucune refonte de produit implémentée. Demande : récupérer repo, garder logo, refondre expérience en jeu mobile moderne installable en PWA, auditer et réviser jusqu'à validation. Carte blanche sur décisions réversibles de conception ; étape actuelle limitée à audit et plan.
+Statut : conception acceptée puis réalisée localement sur `codex/hunt-mobile-redesign`. Logo conservé. Validation navigateur et PostgreSQL locale documentée dans `docs/validation/2026-10-09/VALIDATION.md`. Publication, migration Supabase distante et essais physiques restent ouverts.
 
 ## Intention et décisions
 

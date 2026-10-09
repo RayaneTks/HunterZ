@@ -1,0 +1,7 @@
+import {test,expect} from '@playwright/test';
+test('measure production LCP, CLS and rules interaction',async({page})=>{
+ await page.route('**/auth/v1/**',route=>route.abort());await page.route('**/rest/v1/**',route=>route.abort());
+ await page.addInitScript(()=>{const metrics={lcp:0,cls:0,events:[] as number[]};(window as unknown as {huntMetrics:typeof metrics}).huntMetrics=metrics;new PerformanceObserver(list=>{for(const e of list.getEntries())metrics.lcp=e.startTime;}).observe({type:'largest-contentful-paint',buffered:true});new PerformanceObserver(list=>{for(const e of list.getEntries() as (PerformanceEntry&{hadRecentInput:boolean;value:number})[])if(!e.hadRecentInput)metrics.cls+=e.value;}).observe({type:'layout-shift',buffered:true});new PerformanceObserver(list=>{for(const e of list.getEntries())metrics.events.push(e.duration);}).observe({type:'event',buffered:true,durationThreshold:16} as PerformanceObserverInit);});
+ await page.setViewportSize({width:390,height:844});await page.goto('/');await page.getByLabel('Ton pseudo').waitFor();await page.getByRole('button',{name:'Comment jouer'}).click();await expect(page.getByRole('dialog',{name:'La Piste'})).toBeVisible();await page.getByRole('button',{name:'Fermer les règles'}).click();
+ const metrics=await page.evaluate(()=>(window as unknown as {huntMetrics:{lcp:number;cls:number;events:number[]}}).huntMetrics);console.log(JSON.stringify(metrics));expect(metrics.cls).toBeLessThanOrEqual(.1);expect(metrics.lcp).toBeLessThanOrEqual(2500);
+});

@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. User requested planning first; do not treat this document as proof of implemented functionality.
 
+**Suivi réel :** [todo.md](todo.md), [progress.md](progress.md) et [validation](../docs/validation/2026-10-09/VALIDATION.md). Les étapes ci-dessous conservent le plan initial ; les écarts sont consignés dans ces rapports.
+
 **Goal:** Transformer HUNT en expérience mobile distinctive, installable, puis en jeu La Piste complet et vérifiable.
 
 **Architecture:** Réutiliser salon et lifecycle GPS existants. Extraire écrans sans changer contrats actuels, ajouter PWA légère, puis machine de match autoritaire Supabase avec stockage de positions privé par rôle. Chaque tâche produit une tranche vérifiable, jamais un ensemble de faux écrans de jeu.

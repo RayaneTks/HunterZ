@@ -1,0 +1,19 @@
+join: FAIL — Concurrent join entered a frozen match
+
+true !== false
+
+leave: FAIL — Concurrent departure left a frozen departed player
++ actual - expected
+
++ 'briefing'
+- 'cancelled'
+
+join: Concurrent join entered a frozen match
+
+true !== false
+
+leave: Concurrent departure left a frozen departed player
++ actual - expected
+
++ 'briefing'
+- 'cancelled'

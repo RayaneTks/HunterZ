@@ -19,3 +19,17 @@ T14 gate: physical phones and deployed Supabase transport not available locally;
 Task 6: complete locally — production offline reload and multi-tab voluntary update passed.
 Task 7: complete locally — dedicated maskable icon, stable manifest identity, real viewport screenshots; physical install remains T14 gate.
 Graphify final extraction: 662 nodes, 1018 relations; same three Gradle parser limitations as baseline.
+
+Final review: fresh-context review of c8fa914..da11000 reported four Important findings, no Critical or Minor. Accepted all four; no findings declined or minor fixes deferred. One fix pass, no second review.
+Review fix 1: stale room-only action could affect rematch. Expected match id required for non-create; action receipt binds payload. PostgreSQL RED -> GREEN.
+Review fix 2: inaccurate fixes refreshed technical-pause deadline. Last admissible signal tracked independently; technical pause applied before timeout, elapsed capped at deadline; stop-sharing pauses before purge. PostgreSQL RED -> GREEN.
+Review fix 3: membership trigger raced uncommitted match creation. Native PostgreSQL with independent connections reproduced join entering frozen match and leave leaving briefing active. Room lock before membership guard -> GREEN 2/2.
+Review fix 4: rematch roster used historical participants. Current room members passed to preparation; four-browser flow confirms departed player removed and 3-player preparation disabled.
+Ruling: Native PostgreSQL concurrency tooling isolated outside app; optional Windows script, no product dependency/system service. Cost: native test not included in Linux CI; local proof retained.
+Final gate: npm test 41/41; typecheck PASS; build PASS (194 kB First Load JS); Playwright mobile 11/11; production 11/11; native PostgreSQL concurrency 2/2; git diff --check PASS.
+T14: local gate complete. External gates remain open: deployed Supabase Auth/REST/Realtime, physical install/GPS/background, real virtual keyboard and screen readers. These are not presumed passing. No push, merge or deployment.
+Performance evidence: localhost Chromium LCP 188 ms, CLS 0, event durations 24 ms; no field INP claim.
+Review limits accepted: no additional concrete SQL GPS leak established; distant Realtime, native lifecycle and physical performance were not certified. Cost: external checks before publishing.
+Final rulings and costs exhaustive in docs/validation/2026-10-09/VALIDATION.md; rollback in docs/work/2026-10-mobile-release.md. Final logs preserved in docs/validation/2026-10-09/logs before plan scratch cleanup.
+
+Visual audit: map canvas asserted present before capture; initial blank capture was taken before dynamic map mount. Removed inherited grayscale filter to retain semantic clue/terrain colours; release announcement hidden during active briefing/match. Gameplay screenshots inspected; public basemap deliberately stubbed in test.

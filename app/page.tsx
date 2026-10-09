@@ -590,7 +590,7 @@ export default function Home() {
 
   const sharing = gps.state === 'active' || gps.state === 'requesting';
 
-  if (room && game.match) return <MatchScreen match={game.match} me={userId} host={room.owner_id===userId} code={room.code} gps={gps} fresh={game.fresh} error={game.error} busy={game.busy} onAction={game.act} onExit={() => void handleExit()} />;
+  if (room && game.match) return <MatchScreen match={game.match} members={snapshot.members} me={userId} host={room.owner_id===userId} code={room.code} gps={gps} fresh={game.fresh} error={game.error} busy={game.busy} onAction={game.act} onExit={() => void handleExit()} />;
 
   return (
     <main className={`app-shell ${room ? 'app-shell-lobby' : ''}`}>

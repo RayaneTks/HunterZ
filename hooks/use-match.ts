@@ -23,7 +23,7 @@ export function useMatch(roomId:string|null) {
  },[roomId,accept]);
  const act=async(action:string,options:{target?:string;ready?:boolean;request?:string}={})=>{
   if(!roomId||busy)return;setBusy(true);setError('');const seq=++sequence.current;
-  try{accept(await matchAction(roomId,action,options),seq,roomId);}
+  try{accept(await matchAction(roomId,action,{...options,matchId:action==='create'?undefined:match?.id}),seq,roomId);}
   catch(e){setError(e&&typeof e==='object'&&'message'in e?String(e.message):'Action indisponible. Réessaie.');}
   finally{setBusy(false);}
  };

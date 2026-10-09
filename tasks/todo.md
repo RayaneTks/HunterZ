@@ -1,24 +1,25 @@
 # HUNT — réalisation de refonte
 
-Plan : [plan.md](plan.md). Spec : [contrat de conception](../docs/superpowers/specs/2026-10-09-hunt-mobile-redesign.md).
+Plan : [plan.md](plan.md). Preuves : [validation](../docs/validation/2026-10-09/VALIDATION.md). Décisions : [progress.md](progress.md).
 
-Étape actuelle : audit et plan. Toutes tâches produit ci-dessous restent à réaliser.
+État : refonte implémentée et vérifiée localement. Publication et validation terrain ouvertes.
 
-- [ ] T1 — Entrée sans interruption
-- [ ] T2 — Système visuel et lisibilité
-- [ ] T3 — Accueil orienté jeu
-- [ ] T4 — Salon lisible et carte prioritaire
-- [ ] Checkpoint mobile : review visuelle, accessibilité, lobby complet
-- [ ] T5 — Installer selon appareil
-- [ ] T6 — Démarrage hors ligne et mise à jour sûre
-- [ ] T7 — Identité installée et mesure production
-- [ ] Checkpoint PWA : install, offline, update, privacy
-- [ ] T8 — Briefing privé et contrat serveur
-- [ ] T9 — GPS de match par rôle
-- [ ] T10 — Départ, pause et horloge
-- [ ] T11 — Carte de manche et indices
-- [ ] T12 — Une fin de manche réelle
-- [ ] T13 — Revanche et session complète
-- [ ] Checkpoint jeu : session à 4, trois issues, review indépendante
-- [ ] T14 — Validation terrain et livraison
-- [ ] Checkpoint livraison : aucune anomalie critique, limites documentées, rollback prêt
+- [x] T1 — Entrée sans interruption
+- [x] T2 — Système visuel et lisibilité
+- [x] T3 — Accueil orienté jeu
+- [x] T4 — Salon lisible et carte prioritaire
+- [x] Checkpoint mobile local : captures, zoom, touch, parcours salon
+- [x] T5 — Aide d’installation selon appareil
+- [x] T6 — Démarrage hors ligne et mise à jour sûre
+- [x] T7 — Identité installée et mesure sur export production local
+- [x] Checkpoint PWA navigateur : offline, update, absence de cache privé
+- [x] T8 — Briefing privé et contrat serveur
+- [x] T9 — GPS de match par rôle
+- [x] T10 — Départ, pause et horloge
+- [x] T11 — Carte de manche et indices
+- [x] T12 — Capture, extraction, temps écoulé
+- [x] T13 — Revanche avec escouade actuelle
+- [x] Checkpoint jeu local : quatre navigateurs, SQL PostgreSQL, revue indépendante corrigée
+- [x] T14 local — Suite finale, rapport, limites et retour arrière
+- [ ] T14 terrain — Installation iPhone/Android/desktop réelle ; quatre téléphones ; soleil ; clavier virtuel ; VoiceOver/TalkBack ; GPS faible ; arrière-plan/reprise/arrêt
+- [ ] T14 déploiement — Migration sur Supabase isolé ; Auth/REST/Realtime réels ; preview HTTPS ; publication autorisée
