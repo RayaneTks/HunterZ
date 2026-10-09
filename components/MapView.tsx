@@ -42,6 +42,10 @@ export default function MapView({ locations, me, recenterSignal }: { locations: 
       style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
       center: [5.3698, 43.2965],
       zoom: 13.5,
+      cooperativeGestures: false,
+      pitchWithRotate: false,
+      dragRotate: false,
+      touchPitch: false,
     });
     map.current = instance;
     const mapContainer = container.current;

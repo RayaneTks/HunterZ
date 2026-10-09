@@ -62,6 +62,10 @@ function SignalStatus({ state, accuracy, lastUpdate, errorMessage }: { state: Re
   return <div className={`signal-status ${state}`} role="status" aria-live="polite"><span className="signal-status-mark" /><span><strong>{labels[state]}</strong><small>{detail}</small></span></div>;
 }
 
+function vibrate(duration = 10) {
+  if ('vibrate' in navigator) navigator.vibrate(duration);
+}
+
 function CopyButton({ value, label = 'Copier' }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
@@ -116,6 +120,7 @@ export default function Home() {
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [squadExpanded, setSquadExpanded] = useState(false);
   const [desktopLobby, setDesktopLobby] = useState(false);
+  const sheetTouchStart = useRef<number | null>(null);
   const [freshnessNow, setFreshnessNow] = useState(() => Date.now());
   const activeRoomRef = useRef<Room | null>(null);
   activeRoomRef.current = room;
@@ -362,11 +367,11 @@ export default function Home() {
       {!nickname ? (
         <section className="welcome-layout">
           <div className="welcome-copy"><p className="eyebrow"><span className="rec-dot" /> LE TERRAIN, C’EST TA VILLE.</p><h1>La chasse<br />commence ici.</h1><p className="lead-small">Réunis ton escouade.<br />Retrouvez-vous sur le terrain.</p></div>
-          <form className="entry-card" onSubmit={(event) => { event.preventDefault(); void handleLogin(); }}>
+          <form className="entry-card" aria-busy={busy} onSubmit={(event) => { event.preventDefault(); void handleLogin(); }}>
             <label className="field-label" htmlFor="nickname">Ton pseudo</label>
-            <input id="nickname" placeholder="Comment on t’appelle ?" value={nicknameInput} minLength={2} maxLength={24} required onChange={(event) => setNicknameInput(event.target.value)} autoComplete="nickname" />
+            <input id="nickname" placeholder="Comment on t’appelle ?" value={nicknameInput} minLength={2} maxLength={24} required onChange={(event) => setNicknameInput(event.target.value)} autoComplete="nickname" enterKeyHint="go" />
             {error && errorScope === 'profile' && <ActionError message={error} onDismiss={clearError} />}
-            <button type="submit" className="button button-primary button-wide" disabled={busy}>{busy ? 'Connexion…' : 'Entrer dans HUNT'}<ArrowRight size={18} /></button>
+            <button type="submit" className="button button-primary button-wide" disabled={busy} aria-label={busy ? 'Connexion en cours' : undefined}>{busy ? <><span className="button-spinner" aria-hidden="true" /> Connexion…</> : <>Entrer dans HUNT<ArrowRight size={18} /></>}</button>
             <p className="privacy-note"><ShieldCheck size={14} /> Ta position se partage uniquement dans ta chasse.</p>
           </form>
         </section>
@@ -375,12 +380,12 @@ export default function Home() {
           <div className="page-intro"><p className="greeting">Salut, {nickname}.</p><h1>Choisis<br />une chasse.</h1><p className="lead-small">Ton escouade. Ta ville. Votre terrain.</p></div>
           <div className="command-actions">
             <section className="primary-action">
-              <button className="button button-primary button-wide" disabled={busy} onClick={() => void handleCreate()}>{busy ? 'Connexion…' : 'Créer une chasse'}<ArrowRight size={18} /></button>
+              <button className="button button-primary button-wide" disabled={busy} aria-busy={busy} onClick={() => { vibrate(); void handleCreate(); }}>{busy ? <><span className="button-spinner" aria-hidden="true" /> Création…</> : <>Créer une chasse<ArrowRight size={18} /></>}</button>
               {error && errorScope === 'create' && <ActionError message={error} onRetry={() => void handleCreate()} onDismiss={clearError} />}
             </section>
             <form className="join-action" onSubmit={(event) => { event.preventDefault(); if (joinCode.length === 6) void handleJoin(); }}>
               <label className="join-label" htmlFor="join-code">Déjà un code ?</label>
-              <div className="join-row"><input id="join-code" placeholder="CODE DE CHASSE" value={joinCode} maxLength={6} minLength={6} required autoComplete="off" autoCapitalize="characters" spellCheck={false} onChange={(event) => setJoinCode(event.target.value.replace(/[^a-z0-9]/gi, '').toUpperCase())} /><button type="submit" className="button button-soft" disabled={busy || joinCode.length !== 6} aria-label="Rejoindre la chasse"><ArrowRight size={20} /></button></div>
+              <div className="join-row"><input id="join-code" placeholder="CODE DE CHASSE" value={joinCode} maxLength={6} minLength={6} required autoComplete="off" autoCapitalize="characters" spellCheck={false} enterKeyHint="go" onChange={(event) => setJoinCode(event.target.value.replace(/[^a-z0-9]/gi, '').toUpperCase())} /><button type="submit" className="button button-soft" disabled={busy || joinCode.length !== 6} aria-label={busy ? 'Connexion à la chasse en cours' : 'Rejoindre la chasse'}>{busy ? <span className="button-spinner" aria-hidden="true" /> : <ArrowRight size={20} />}</button></div>
               {error && errorScope === 'join' && <ActionError message={error} onRetry={() => void handleJoin()} onDismiss={clearError} />}
             </form>
           </div>
@@ -397,8 +402,8 @@ export default function Home() {
             <button className="map-recenter" onClick={() => setRecenterSignal((value) => value + 1)} aria-label="Centrer sur ma position"><Crosshair size={21} /></button>
           </div>
 
-          <aside className={`squad-sheet ${squadExpanded ? 'expanded' : ''}`} aria-label="Escouade">
-            <button className="sheet-toggle" disabled={desktopLobby} onClick={() => setSquadExpanded((value) => !value)} aria-expanded={squadExpanded || desktopLobby} aria-controls="squad-content"><span className="sheet-handle" aria-hidden="true" /><span className="sheet-heading"><span>Escouade <small>{snapshot.members.length}</small></span><ChevronDown size={19} /></span><span className="sr-only">{squadExpanded ? 'Réduire' : 'Développer'} le panneau</span></button>
+          <aside className={`squad-sheet ${squadExpanded ? 'expanded' : ''}`} aria-label="Escouade" onTouchStart={(event) => { sheetTouchStart.current = event.touches[0]?.clientY ?? null; }} onTouchEnd={(event) => { if (desktopLobby || sheetTouchStart.current == null) return; const delta = (event.changedTouches[0]?.clientY ?? sheetTouchStart.current) - sheetTouchStart.current; if (Math.abs(delta) > 48) { setSquadExpanded(delta < 0); vibrate(8); } sheetTouchStart.current = null; }}>
+            <button className="sheet-toggle" disabled={desktopLobby} onClick={() => { setSquadExpanded((value) => !value); vibrate(8); }} aria-expanded={squadExpanded || desktopLobby} aria-controls="squad-content"><span className="sheet-handle" aria-hidden="true" /><span className="sheet-heading"><span>Escouade <small>{snapshot.members.length}</small></span><ChevronDown size={19} /></span><span className="sr-only">{squadExpanded ? 'Réduire' : 'Développer'} le panneau</span></button>
             <div className="squad-content" id="squad-content">
               <div className="beacon-row"><SignalStatus state={gps.state} accuracy={gps.accuracy} lastUpdate={gps.lastUpdate} errorMessage={gps.errorMessage} /><button className={`beacon-switch ${sharing ? 'active' : ''}`} role="switch" aria-checked={sharing} aria-label="Partager ma position avec l’escouade" onClick={() => void (sharing ? gps.stop() : gps.start())}><span /></button></div>
               <ul className="members">{snapshot.members.map((member) => {
