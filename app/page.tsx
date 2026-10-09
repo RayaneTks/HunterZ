@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { ArrowRight, Check, ChevronDown, CircleAlert, Copy, Crosshair, LogOut, Radio, ShieldCheck, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, CircleAlert, Copy, Crosshair, LogOut, Radio, Share2, ShieldCheck, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGeolocation } from '../hooks/use-geolocation';
 import InstallPrompt from '../components/InstallPrompt';
@@ -85,6 +85,44 @@ function CopyButton({ value, label = 'Copier' }: { value: string; label?: string
   return <div className="copy-control"><button className="button button-ghost button-small" onClick={() => void copy()}><span>{copied ? <Check size={15} /> : <Copy size={15} />}</span><span aria-live="polite">{copied ? 'Copié' : label}</span></button>{copyFailed && <label className="copy-fallback">Copie ce code<input readOnly value={value} aria-label="Code à copier manuellement" onFocus={(event) => event.target.select()} /></label>}</div>;
 }
 
+function InviteButton({ code }: { code: string }) {
+  const [notice, setNotice] = useState('');
+  const [copyFallback, setCopyFallback] = useState(false);
+
+  async function share() {
+    const url = new URL('/', window.location.origin);
+    url.searchParams.set('invite', code);
+    const invitationUrl = url.toString();
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Rejoins ma chasse HUNT', text: `Rejoins ma chasse privée avec le code ${code}.`, url: invitationUrl });
+        setNotice('Lien partagé');
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(invitationUrl);
+        setNotice('Lien copié');
+      } else {
+        setCopyFallback(true);
+        return;
+      }
+      setCopyFallback(false);
+      window.setTimeout(() => setNotice(''), 2000);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      try {
+        await navigator.clipboard.writeText(invitationUrl);
+        setNotice('Lien copié');
+        setCopyFallback(false);
+        window.setTimeout(() => setNotice(''), 2000);
+      } catch {
+        setCopyFallback(true);
+      }
+    }
+  }
+
+  const url = typeof window === 'undefined' ? '' : new URL(`/?invite=${encodeURIComponent(code)}`, window.location.origin).toString();
+  return <div className="invite-control"><button className="button button-ghost button-small invite-button" onClick={() => void share()}><Share2 size={15} /><span aria-live="polite">{notice || 'Inviter'}</span></button>{copyFallback && <label className="copy-fallback invite-fallback">Lien à partager<input readOnly value={url} aria-label="Lien d’invitation à copier" onFocus={(event) => event.target.select()} /></label>}</div>;
+}
+
 function ActionError({ message, onRetry, onDismiss }: { message: string; onRetry?: () => void; onDismiss: () => void }) {
   return <div className="action-error" role="alert"><CircleAlert size={15} /><span>{message}</span>{onRetry && <button className="button button-ghost button-small action-retry" onClick={onRetry}>Réessayer</button>}<button className="icon-button" onClick={onDismiss} aria-label="Fermer"><X size={15} /></button></div>;
 }
@@ -111,6 +149,7 @@ export default function Home() {
   const [room, setRoom] = useState<Room | null>(null);
   const [snapshot, setSnapshot] = useState<LobbySnapshot>({ members: [], locations: [] });
   const [joinCode, setJoinCode] = useState('');
+  const [pendingInvite, setPendingInvite] = useState('');
   const [editingProfile, setEditingProfile] = useState(false);
   const [error, setError] = useState('');
   const [errorScope, setErrorScope] = useState<ErrorScope>('global');
@@ -161,6 +200,18 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
     async function boot() {
+      const inviteUrl = new URL(window.location.href);
+      const inviteCode = inviteUrl.searchParams.get('invite')?.trim().toUpperCase() ?? '';
+      if (inviteUrl.searchParams.has('invite')) {
+        if (/^[A-Z0-9]{6}$/.test(inviteCode)) {
+          setJoinCode(inviteCode);
+          setPendingInvite(inviteCode);
+        } else {
+          showError('Ce lien d’invitation n’est pas valide.');
+        }
+        inviteUrl.searchParams.delete('invite');
+        window.history.replaceState(window.history.state, '', `${inviteUrl.pathname}${inviteUrl.search}${inviteUrl.hash}`);
+      }
       if (!supabase) {
         setBooting(false);
         return;
@@ -293,11 +344,11 @@ export default function Home() {
     }
   }
 
-  async function handleJoin() {
+  async function handleJoinCode(code: string) {
     setBusy(true);
     clearError();
     try {
-      await joinAndActivateRoom(joinCode, joinRoom, activeRoomStorage(), setRoom);
+      await joinAndActivateRoom(code, joinRoom, activeRoomStorage(), setRoom);
       setJoinCode('');
     } catch (joinError) {
       showError(messageFromError(joinError), 'join');
@@ -305,6 +356,17 @@ export default function Home() {
       setBusy(false);
     }
   }
+
+  async function handleJoin() {
+    await handleJoinCode(joinCode);
+  }
+
+  useEffect(() => {
+    if (!pendingInvite || booting || busy || !nickname || room) return;
+    const code = pendingInvite;
+    setPendingInvite('');
+    void handleJoinCode(code);
+  }, [pendingInvite, booting, busy, nickname, room]);
 
   async function handleExit() {
     if (!room) return;
@@ -369,6 +431,7 @@ export default function Home() {
           <div className="welcome-copy"><p className="eyebrow"><span className="rec-dot" /> LE TERRAIN, C’EST TA VILLE.</p><h1>La chasse<br />commence ici.</h1><p className="lead-small">Réunis ton escouade.<br />Retrouvez-vous sur le terrain.</p></div>
           <form className="entry-card" aria-busy={busy} onSubmit={(event) => { event.preventDefault(); void handleLogin(); }}>
             <label className="field-label" htmlFor="nickname">Ton pseudo</label>
+            {pendingInvite && <p className="invite-context">Invitation à rejoindre la chasse <strong>{pendingInvite}</strong>. Après ton pseudo, tu entreras directement dans le salon.</p>}
             <input id="nickname" placeholder="Comment on t’appelle ?" value={nicknameInput} minLength={2} maxLength={24} required onChange={(event) => setNicknameInput(event.target.value)} autoComplete="nickname" enterKeyHint="go" />
             {error && errorScope === 'profile' && <ActionError message={error} onDismiss={clearError} />}
             <button type="submit" className="button button-primary button-wide" disabled={busy} aria-label={busy ? 'Connexion en cours' : undefined}>{busy ? <><span className="button-spinner" aria-hidden="true" /> Connexion…</> : <>Entrer dans HUNT<ArrowRight size={18} /></>}</button>
@@ -396,7 +459,7 @@ export default function Home() {
         <section className="lobby-view" aria-label="Lobby de la chasse">
           <div className="field-map-shell">
             <MapView key={room.id} locations={recentLocations} me={userId} recenterSignal={recenterSignal} />
-            <div className="field-map-header"><div className="room-identity"><p className="eyebrow">CHASSE PRIVÉE</p><h1>{room.code}</h1></div><CopyButton value={room.code} label="Copier le code" /></div>
+            <div className="field-map-header"><div className="room-identity"><p className="eyebrow">CHASSE PRIVÉE</p><h1>{room.code}</h1></div><div className="room-invite-actions"><InviteButton code={room.code} /><CopyButton value={room.code} label="Copier le code" /></div></div>
             <div className="map-live"><span className="rec-dot" /><span>{syncing ? 'Actualisation' : 'En direct'} · {activeLocationCount} balise{activeLocationCount > 1 ? 's' : ''}</span></div>
             {activeLocationCount === 0 && <p className="map-empty-readout">Marseille · En attente des premières positions</p>}
             <button className="map-recenter" onClick={() => setRecenterSignal((value) => value + 1)} aria-label="Centrer sur ma position"><Crosshair size={21} /></button>

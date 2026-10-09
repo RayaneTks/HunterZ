@@ -105,6 +105,12 @@ input:focus { border-color: var(--ink); }
 .field-map-header { position: absolute; z-index: 3; top: max(90px, calc(env(safe-area-inset-top) + 64px)); left: 24px; right: 24px; display: flex; align-items: center; justify-content: space-between; max-width: 460px; }
 .room-identity h1 { margin-top: 6px; font-size: 20px; font-weight: 600; letter-spacing: .12em; }
 .field-map-header .button { color: var(--ink); }
+.room-invite-actions { display: flex; align-items: center; gap: 2px; }
+.room-invite-actions .button { gap: 6px; padding-right: 10px; padding-left: 10px; font-size: 11px; }
+.invite-control { position: relative; }
+.invite-fallback { z-index: 5; width: min(260px, calc(100vw - 48px)); }
+.invite-context { margin-bottom: 4px; padding: 12px 14px; border: 1px solid #f05a5044; border-radius: 10px; color: var(--muted); background: #21191a; font-size: 13px; line-height: 1.5; }
+.invite-context strong { color: var(--ink); letter-spacing: .1em; }
 .map-live { position: absolute; z-index: 3; top: max(154px, calc(env(safe-area-inset-top) + 128px)); left: 24px; display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
 .map-empty-readout { position: absolute; z-index: 3; bottom: calc(var(--sheet-height) + 26px); left: 24px; max-width: calc(100% - 104px); padding: 8px 10px; border-radius: 8px; color: var(--muted); background: #111416d9; font-size: 11px; line-height: 1.5; }
 .map-recenter { position: absolute; z-index: 3; right: 20px; bottom: calc(var(--sheet-height) + 20px); display: grid; place-items: center; width: 52px; height: 52px; border: 1px solid #ffffff25; border-radius: 50%; color: var(--ink); background: #1b1e20e8; backdrop-filter: blur(12px); touch-action: manipulation; }
