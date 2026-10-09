@@ -35,6 +35,7 @@ export default function MapView({ locations, me, recenterSignal }: { locations: 
 
   useEffect(() => {
     if (!container.current || map.current) return;
+    maplibregl.setWorkerUrl(new URL('maplibre-gl/dist/maplibre-gl-worker.mjs', import.meta.url).toString());
     reduceMotion.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const instance = new maplibregl.Map({
       container: container.current,

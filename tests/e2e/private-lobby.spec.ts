@@ -166,6 +166,12 @@ test('two mobile players create, join, share, stop, leave, and close one private
   const fixture = createLobbyFixture();
   const hostClient = await createMobileContext(browser, fixture, 'host', ['geolocation']);
   const guestClient = await createMobileContext(browser, fixture, 'guest', []);
+  const workerErrors: string[] = [];
+  for (const page of [hostClient.page, guestClient.page]) {
+    page.on('console', (message) => {
+      if (message.type() === 'error' && message.text().includes('Worker failed to load')) workerErrors.push(message.text());
+    });
+  }
   await hostClient.context.setGeolocation({ latitude: 43.2965, longitude: 5.3698, accuracy: 9 });
   await guestClient.context.setGeolocation({ latitude: 43.2967, longitude: 5.3701, accuracy: 12 });
 
@@ -202,6 +208,7 @@ test('two mobile players create, join, share, stop, leave, and close one private
     await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' })).toContainText('±4 m', { timeout: 15_000 });
     await expect(hostClient.page.locator('.marker-wrap')).toHaveCount(2, { timeout: 15_000 });
     await expect(guestClient.page.locator('.marker-wrap')).toHaveCount(2, { timeout: 15_000 });
+    expect(workerErrors).toEqual([]);
     expect(fixture.positions.get(fixture.users.guest.id)).toMatchObject({ latitude: 43.2971, longitude: 5.371, accuracy: 4 });
 
     await guestClient.context.setGeolocation(null);

@@ -102,6 +102,27 @@ test('watch requests fresh high-accuracy fixes and retries transient write failu
   assert.equal(states.at(-1).errorMessage, null);
 });
 
+test('invalid browser GPS timestamp cannot make position invisible or reject its database write', async () => {
+  const geolocation = fakeGeolocation();
+  const writes = [];
+  const states = [];
+  const now = Date.UTC(2026, 9, 9, 12);
+  const watch = createLocationWatch({
+    geolocation,
+    now: () => now,
+    writePosition: async (value) => { writes.push(value); },
+    removePosition: async () => {},
+    onUpdate: (state) => states.push(state),
+  });
+
+  await watch.start('room-a', 'user-a');
+  geolocation.watches[0].success(position(Date.UTC(58741, 2, 9, 12)));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(writes[0].updated_at, '2026-10-09T12:00:00.000Z');
+  assert.equal(states.at(-1).lastUpdate, now);
+});
+
 test('location writes stay ordered when network is slower than the GPS throttle', async () => {
   const geolocation = fakeGeolocation();
   const writes = [];
