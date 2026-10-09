@@ -181,7 +181,7 @@ test('two mobile players create, join, share, stop, leave, and close one private
     const code = await hostClient.page.locator('.room-identity h1').innerText();
     expect(code).toBe('HUNT01');
     await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' }).getByText(names.host)).toBeVisible();
-    await expect(hostClient.page.getByRole('status')).toContainText('±9 m');
+    await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' }).getByRole('status')).toContainText('±9 m');
 
     await enterWithNickname(guestClient.page, names.guest);
     await guestClient.page.locator('#join-code').fill(code);
@@ -191,19 +191,19 @@ test('two mobile players create, join, share, stop, leave, and close one private
     await expect(guestClient.page.getByRole('complementary', { name: 'Escouade' }).getByText(names.host)).toBeVisible();
     expect(fixture.members.size).toBe(2);
 
-    await expect(guestClient.page.getByRole('status')).toContainText('Balise bloquée');
+    await expect(guestClient.page.getByRole('complementary', { name: 'Escouade' }).getByRole('status')).toContainText('Balise bloquée');
     await guestClient.context.grantPermissions(['geolocation'], { origin: baseURL });
     await guestClient.page.getByRole('switch', { name: 'Partager ma position avec l’escouade' }).click();
-    await expect(guestClient.page.getByRole('status')).toContainText('±12 m');
+    await expect(guestClient.page.getByRole('complementary', { name: 'Escouade' }).getByRole('status')).toContainText('±12 m');
 
     await guestClient.context.setGeolocation(null);
-    await expect(guestClient.page.getByRole('status')).toContainText('Signal indisponible', { timeout: 15_000 });
+    await expect(guestClient.page.getByRole('complementary', { name: 'Escouade' }).getByRole('status')).toContainText('Signal indisponible', { timeout: 15_000 });
     const retrySharing = guestClient.page.getByRole('switch', { name: 'Partager ma position avec l’escouade' });
     await expect(retrySharing).toBeEnabled();
     await expect(retrySharing).toHaveAttribute('aria-checked', 'false');
     await guestClient.context.setGeolocation({ latitude: 43.2971, longitude: 5.371, accuracy: 4 });
     await retrySharing.click();
-    await expect(guestClient.page.getByRole('status')).toContainText('±4 m', { timeout: 10_000 });
+    await expect(guestClient.page.getByRole('complementary', { name: 'Escouade' }).getByRole('status')).toContainText('±4 m', { timeout: 10_000 });
     await expect.poll(() => fixture.positions.get(fixture.users.guest.id)?.accuracy).toBe(4);
     await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' })).toContainText('±4 m', { timeout: 15_000 });
     await expect(hostClient.page.locator('.marker-wrap')).toHaveCount(2, { timeout: 15_000 });
@@ -211,12 +211,26 @@ test('two mobile players create, join, share, stop, leave, and close one private
     expect(workerErrors).toEqual([]);
     expect(fixture.positions.get(fixture.users.guest.id)).toMatchObject({ latitude: 43.2971, longitude: 5.371, accuracy: 4 });
 
+    await expandSquad(hostClient.page);
+    const guestRow = hostClient.page.getByRole('button', { name: `${names.guest}, centrer la carte sur sa position` });
+    await guestRow.click();
+    await expect(guestRow).toHaveAttribute('aria-current', 'true');
+    await expect(hostClient.page.locator('.sr-only[role="status"]')).toHaveText(`Carte centrée sur ${names.guest}.`);
+
+    const profileMenu = hostClient.page.locator('.user-menu');
+    await hostClient.page.locator('.user-menu-trigger').click();
+    await expect(profileMenu).toHaveJSProperty('open', true);
+    await hostClient.page.locator('.room-identity h1').click();
+    await expect(profileMenu).toHaveJSProperty('open', false);
+
     await guestClient.context.setGeolocation(null);
     const guestPosition = fixture.positions.get(fixture.users.guest.id);
     expect(guestPosition).toBeDefined();
     fixture.positions.set(fixture.users.guest.id, { ...guestPosition!, updated_at: new Date(Date.now() - 46_000).toISOString() });
     await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' }).getByText(/Dernier signal/)).toBeVisible({ timeout: 15_000 });
     await expect(hostClient.page.locator('.marker-wrap')).toHaveCount(1, { timeout: 15_000 });
+    await hostClient.page.getByRole('complementary', { name: 'Escouade' }).getByRole('button', { name: `${names.guest}, aucune position récente` }).click();
+    await expect(hostClient.page.locator('.sr-only[role="status"]')).toHaveText('Aucune position récente pour ce joueur.');
 
     await hostClient.page.getByRole('switch', { name: 'Partager ma position avec l’escouade' }).click();
     await expect.poll(() => fixture.positions.has(fixture.users.host.id)).toBe(false);

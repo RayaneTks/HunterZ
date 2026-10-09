@@ -1,5 +1,6 @@
 node_modules
 .next
+out/
 test-results/
 playwright-report/
 .env.local
@@ -7,6 +8,5 @@ playwright-report/
 .vercel
 /.worktrees/
 supabase/.temp
-
-.vercel
+/public/release.json
 .env*.local

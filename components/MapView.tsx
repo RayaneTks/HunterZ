@@ -24,7 +24,7 @@ function resizeAccuracyRing(record: PlayerMarker, zoom: number) {
   ring.style.height = ring.style.width;
 }
 
-export default function MapView({ locations, me, recenterSignal }: { locations: PlayerLocation[]; me: string; recenterSignal: number }) {
+export default function MapView({ locations, me, recenterSignal, focusedPlayerId, onSelectPlayer }: { locations: PlayerLocation[]; me: string; recenterSignal: number; focusedPlayerId: string | null; onSelectPlayer: (playerId: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapInstance | null>(null);
   const markers = useRef(new Map<string, PlayerMarker>());
@@ -32,6 +32,8 @@ export default function MapView({ locations, me, recenterSignal }: { locations: 
   const fittedToSquad = useRef(false);
   const lastRecenterSignal = useRef(0);
   const reduceMotion = useRef(false);
+  const selectPlayerRef = useRef(onSelectPlayer);
+  selectPlayerRef.current = onSelectPlayer;
 
   useEffect(() => {
     if (!container.current || map.current) return;
@@ -93,6 +95,7 @@ export default function MapView({ locations, me, recenterSignal }: { locations: 
       if (!record) {
         const wrapper = document.createElement('button');
         wrapper.type = 'button';
+        wrapper.addEventListener('click', () => selectPlayerRef.current(player.user_id));
         const ring = document.createElement('div');
         ring.className = 'accuracy-ring';
         const markerElement = document.createElement('div');
@@ -109,7 +112,7 @@ export default function MapView({ locations, me, recenterSignal }: { locations: 
       }
       record.player = player;
       const element = record.marker.getElement();
-      element.className = `marker-wrap${player.user_id === me ? ' self' : ''}`;
+      element.className = `marker-wrap${player.user_id === me ? ' self' : ''}${player.user_id === focusedPlayerId ? ' selected' : ''}`;
       element.setAttribute('aria-label', `Voir ${player.nickname}, précision ${precision}`);
       const glyph = element.querySelector('.map-marker span');
       if (glyph) glyph.textContent = player.nickname.slice(0, 1).toUpperCase();
@@ -117,7 +120,7 @@ export default function MapView({ locations, me, recenterSignal }: { locations: 
       record.marker.getPopup()?.setText(`${player.nickname} · précision ${precision} · ${formatSignalAge(player.updated_at)}`);
       resizeAccuracyRing(record, currentMap.getZoom());
     });
-  }, [locations, me]);
+  }, [locations, me, focusedPlayerId, onSelectPlayer]);
 
   useEffect(() => {
     const currentMap = map.current;
@@ -144,6 +147,14 @@ export default function MapView({ locations, me, recenterSignal }: { locations: 
     lastRecenterSignal.current = recenterSignal;
     map.current.flyTo({ center: [own.longitude, own.latitude], zoom: 16, duration: reduceMotion.current ? 0 : 600 });
   }, [locations, me, recenterSignal]);
+
+  useEffect(() => {
+    const currentMap = map.current;
+    if (!currentMap || !focusedPlayerId) return;
+    const player = locations.find((location) => location.user_id === focusedPlayerId);
+    if (!player) return;
+    currentMap.flyTo({ center: [player.longitude, player.latitude], zoom: Math.max(currentMap.getZoom(), 16), duration: reduceMotion.current ? 0 : 500 });
+  }, [focusedPlayerId, locations]);
 
   return <div ref={container} className="map" aria-label="Carte des joueurs du lobby" />;
 }

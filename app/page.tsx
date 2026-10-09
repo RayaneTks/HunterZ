@@ -1,11 +1,13 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { Capacitor } from '@capacitor/core';
 import { ArrowRight, Check, ChevronDown, CircleAlert, Copy, Crosshair, LogOut, Radio, Share2, ShieldCheck, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGeolocation } from '../hooks/use-geolocation';
 import InstallPrompt from '../components/InstallPrompt';
 import { closeRoom, createRoom, ensureAnonymousSession, getProfile, getRoom, joinRoom, leaveRoom, loadLobby, saveProfile } from '../lib/hunt';
+import { hapticTap } from '../lib/haptics';
 import { supabase } from '../lib/supabase';
 import type { LobbySnapshot, Room } from '../lib/types';
 const { isPositionFresh } = require('../lib/location-freshness.cjs') as { isPositionFresh: (updatedAt: string, nowMs?: number) => boolean };
@@ -48,6 +50,7 @@ function formatAge(timestamp: number | string | null | undefined) {
 }
 
 function SignalStatus({ state, accuracy, lastUpdate, errorMessage }: { state: ReturnType<typeof useGeolocation>['state']; accuracy: number | null; lastUpdate: number | null; errorMessage: string | null }) {
+  const nativeApp = Capacitor.isNativePlatform();
   const labels = {
     off: 'Balise inactive',
     requesting: 'Recherche du signal',
@@ -57,13 +60,11 @@ function SignalStatus({ state, accuracy, lastUpdate, errorMessage }: { state: Re
   } as const;
   const detail = state === 'active'
     ? `${errorMessage ? `${errorMessage} · ` : ''}${formatAge(lastUpdate)} · ±${accuracy == null ? '—' : Math.round(accuracy)} m`
-    : errorMessage ?? (state === 'requesting' ? 'Autorise la localisation dans ton navigateur.' : 'Aucun partage de position en cours.');
+    : errorMessage ?? (state === 'requesting'
+      ? (nativeApp ? 'Autorise la position précise et garde HUNT ouverte pendant la partie.' : 'Autorise la localisation dans ton navigateur.')
+      : (nativeApp ? 'Active le partage de position pour cette partie.' : 'Aucun partage de position en cours.'));
 
   return <div className={`signal-status ${state}`} role="status" aria-live="polite"><span className="signal-status-mark" /><span><strong>{labels[state]}</strong><small>{detail}</small></span></div>;
-}
-
-function vibrate(duration = 10) {
-  if ('vibrate' in navigator) navigator.vibrate(duration);
 }
 
 function CopyButton({ value, label = 'Copier' }: { value: string; label?: string }) {
@@ -132,10 +133,31 @@ function Brand() {
 }
 
 function CompactUserActions({ nickname, editing, nicknameInput, busy, errorMessage, onEdit, onSave, onCancel, onLogout, onChange }: { nickname: string; editing: boolean; nicknameInput: string; busy: boolean; errorMessage?: string; onEdit: () => void; onSave: () => void; onCancel: () => void; onLogout: () => void; onChange: (value: string) => void }) {
+  const menuRef = useRef<HTMLDetailsElement>(null);
+  const triggerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    function closeOnOutside(event: PointerEvent) {
+      if (menuRef.current?.open && event.target instanceof Node && !menuRef.current.contains(event.target)) menuRef.current.open = false;
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || !menuRef.current?.open) return;
+      event.preventDefault();
+      menuRef.current.open = false;
+      triggerRef.current?.focus();
+    }
+    document.addEventListener('pointerdown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, []);
+
   if (editing) {
     return <div className="profile-editor"><div className="profile-field"><input aria-label="Modifier le pseudo" aria-invalid={Boolean(errorMessage)} aria-describedby={errorMessage ? 'profile-error' : undefined} value={nicknameInput} maxLength={24} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onSave(); }} />{errorMessage && <p id="profile-error" className="profile-error" role="alert">{errorMessage}</p>}</div><button className="button button-small button-primary" onClick={onSave} disabled={busy}>Enregistrer</button><button className="button button-ghost button-small icon-button" onClick={onCancel} aria-label="Annuler"><X size={16} /></button></div>;
   }
-  return <details className="user-menu"><summary className="user-menu-trigger"><span className="user-avatar">{nickname.slice(0, 1).toUpperCase()}</span><span>{nickname}</span><span className="user-menu-dots" aria-hidden="true">•••</span></summary><div className="user-menu-popover"><button className="button button-ghost button-small" onClick={onEdit}>Modifier</button><button className="button button-ghost button-small" onClick={onLogout} disabled={busy}><LogOut size={15} /> Déconnexion</button></div></details>;
+  return <details className="user-menu" ref={menuRef}><summary className="user-menu-trigger" ref={triggerRef as React.RefObject<HTMLElement>}><span className="user-avatar">{nickname.slice(0, 1).toUpperCase()}</span><span>{nickname}</span><span className="user-menu-dots" aria-hidden="true">•••</span></summary><div className="user-menu-popover"><button className="button button-ghost button-small" onClick={onEdit}>Modifier</button><button className="button button-ghost button-small" onClick={onLogout} disabled={busy}><LogOut size={15} /> Déconnexion</button></div></details>;
 }
 
 function LoadingScreen() {
@@ -159,7 +181,10 @@ export default function Home() {
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [squadExpanded, setSquadExpanded] = useState(false);
   const [desktopLobby, setDesktopLobby] = useState(false);
+  const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState('');
   const sheetTouchStart = useRef<number | null>(null);
+  const didSheetSwipe = useRef(false);
   const [freshnessNow, setFreshnessNow] = useState(() => Date.now());
   const activeRoomRef = useRef<Room | null>(null);
   activeRoomRef.current = room;
@@ -303,13 +328,30 @@ export default function Home() {
   }, [room]);
 
   useEffect(() => {
-    if (!room) return;
+    if (!room || Capacitor.isNativePlatform()) return;
     void gps.start();
     return () => { void gps.stop(); };
   }, [room?.id, gps.start, gps.stop]);
 
   const recentLocations = useMemo(() => snapshot.locations.filter((location) => isPositionFresh(location.updated_at, freshnessNow)), [snapshot.locations, freshnessNow]);
   const activeLocationCount = recentLocations.length;
+
+  const selectPlayer = useCallback((playerId: string) => {
+    setFocusedPlayerId(playerId);
+    const player = recentLocations.find((location) => location.user_id === playerId);
+    if (!player) {
+      setActionNotice('Aucune position récente pour ce joueur.');
+      return;
+    }
+    setActionNotice(`Carte centrée sur ${player.nickname}.`);
+    hapticTap();
+  }, [recentLocations]);
+
+  useEffect(() => {
+    if (!actionNotice) return;
+    const timeout = window.setTimeout(() => setActionNotice(''), 2600);
+    return () => window.clearTimeout(timeout);
+  }, [actionNotice]);
 
   async function handleLogin() {
     const value = nicknameInput.trim();
@@ -443,7 +485,7 @@ export default function Home() {
           <div className="page-intro"><p className="greeting">Salut, {nickname}.</p><h1>Choisis<br />une chasse.</h1><p className="lead-small">Ton escouade. Ta ville. Votre terrain.</p></div>
           <div className="command-actions">
             <section className="primary-action">
-              <button className="button button-primary button-wide" disabled={busy} aria-busy={busy} onClick={() => { vibrate(); void handleCreate(); }}>{busy ? <><span className="button-spinner" aria-hidden="true" /> Création…</> : <>Créer une chasse<ArrowRight size={18} /></>}</button>
+              <button className="button button-primary button-wide" disabled={busy} aria-busy={busy} onClick={() => { hapticTap(); void handleCreate(); }}>{busy ? <><span className="button-spinner" aria-hidden="true" /> Création…</> : <>Créer une chasse<ArrowRight size={18} /></>}</button>
               {error && errorScope === 'create' && <ActionError message={error} onRetry={() => void handleCreate()} onDismiss={clearError} />}
             </section>
             <form className="join-action" onSubmit={(event) => { event.preventDefault(); if (joinCode.length === 6) void handleJoin(); }}>
@@ -453,27 +495,29 @@ export default function Home() {
             </form>
           </div>
           <p className="privacy-note"><ShieldCheck size={14} /> Terrain privé. Position visible par ton escouade.</p>
-          <div className="entry-location"><span className="rec-dot" /> MARSEILLE <span>43.2965° N · 5.3698° E</span></div>
+          <div className="entry-location"><span className="rec-dot" /> PRÊT POUR LE TERRAIN <span>Chasse privée</span></div>
         </section>
       ) : (
         <section className="lobby-view" aria-label="Lobby de la chasse">
           <div className="field-map-shell">
-            <MapView key={room.id} locations={recentLocations} me={userId} recenterSignal={recenterSignal} />
+            <MapView key={room.id} locations={recentLocations} me={userId} recenterSignal={recenterSignal} focusedPlayerId={focusedPlayerId} onSelectPlayer={selectPlayer} />
             <div className="field-map-header"><div className="room-identity"><p className="eyebrow">CHASSE PRIVÉE</p><h1>{room.code}</h1></div><div className="room-invite-actions"><InviteButton code={room.code} /><CopyButton value={room.code} label="Copier le code" /></div></div>
             <div className="map-live"><span className="rec-dot" /><span>{syncing ? 'Actualisation' : 'En direct'} · {activeLocationCount} balise{activeLocationCount > 1 ? 's' : ''}</span></div>
-            {activeLocationCount === 0 && <p className="map-empty-readout">Marseille · En attente des premières positions</p>}
+            <p className="sr-only" role="status" aria-live="polite">{actionNotice}</p>
+            {activeLocationCount === 0 && <p className="map-empty-readout">En attente des premières positions</p>}
             <button className="map-recenter" onClick={() => setRecenterSignal((value) => value + 1)} aria-label="Centrer sur ma position"><Crosshair size={21} /></button>
           </div>
 
-          <aside className={`squad-sheet ${squadExpanded ? 'expanded' : ''}`} aria-label="Escouade" onTouchStart={(event) => { sheetTouchStart.current = event.touches[0]?.clientY ?? null; }} onTouchEnd={(event) => { if (desktopLobby || sheetTouchStart.current == null) return; const delta = (event.changedTouches[0]?.clientY ?? sheetTouchStart.current) - sheetTouchStart.current; if (Math.abs(delta) > 48) { setSquadExpanded(delta < 0); vibrate(8); } sheetTouchStart.current = null; }}>
-            <button className="sheet-toggle" disabled={desktopLobby} onClick={() => { setSquadExpanded((value) => !value); vibrate(8); }} aria-expanded={squadExpanded || desktopLobby} aria-controls="squad-content"><span className="sheet-handle" aria-hidden="true" /><span className="sheet-heading"><span>Escouade <small>{snapshot.members.length}</small></span><ChevronDown size={19} /></span><span className="sr-only">{squadExpanded ? 'Réduire' : 'Développer'} le panneau</span></button>
+          <aside className={`squad-sheet ${squadExpanded ? 'expanded' : ''}`} aria-label="Escouade">
+            <button className="sheet-toggle" disabled={desktopLobby} onTouchStart={(event) => { sheetTouchStart.current = event.touches[0]?.clientY ?? null; didSheetSwipe.current = false; }} onTouchEnd={(event) => { if (desktopLobby || sheetTouchStart.current == null) return; const delta = (event.changedTouches[0]?.clientY ?? sheetTouchStart.current) - sheetTouchStart.current; if (Math.abs(delta) > 48) { didSheetSwipe.current = true; if ((delta < 0) !== squadExpanded) { setSquadExpanded(delta < 0); hapticTap(); } } sheetTouchStart.current = null; }} onClick={() => { if (didSheetSwipe.current) { didSheetSwipe.current = false; return; } setSquadExpanded((value) => !value); hapticTap(); }} aria-expanded={squadExpanded || desktopLobby} aria-controls="squad-content"><span className="sheet-handle" aria-hidden="true" /><span className="sheet-heading"><span>Escouade <small>{snapshot.members.length}</small></span><ChevronDown size={19} /></span><span className="sr-only">{squadExpanded ? 'Réduire' : 'Développer'} le panneau</span></button>
             <div className="squad-content" id="squad-content">
-              <div className="beacon-row"><SignalStatus state={gps.state} accuracy={gps.accuracy} lastUpdate={gps.lastUpdate} errorMessage={gps.errorMessage} /><button className={`beacon-switch ${sharing ? 'active' : ''}`} role="switch" aria-checked={sharing} aria-label="Partager ma position avec l’escouade" onClick={() => void (sharing ? gps.stop() : gps.start())}><span /></button></div>
+              <div className="beacon-row"><SignalStatus state={gps.state} accuracy={gps.accuracy} lastUpdate={gps.lastUpdate} errorMessage={gps.errorMessage} /><button className={`beacon-switch ${sharing ? 'active' : ''}`} role="switch" aria-checked={sharing} aria-label="Partager ma position avec l’escouade" onClick={() => { if (sharing) void gps.stop(); else void gps.start(); }}><span /></button></div>
               <ul className="members">{snapshot.members.map((member) => {
                 const location = snapshot.locations.find((item) => item.user_id === member.user_id);
                 const fresh = Boolean(location && isPositionFresh(location.updated_at, freshnessNow));
                 const own = member.user_id === userId;
-                return <li key={member.user_id}><span className={`member-avatar ${own ? 'self' : ''} ${fresh ? 'online' : ''}`}>{(member.profiles?.nickname ?? 'Joueur').slice(0, 1).toUpperCase()}</span><div><strong>{member.profiles?.nickname ?? 'Joueur'}{own && <span className="you-tag">toi</span>}</strong><small>{fresh ? `${formatAge(location?.updated_at)} · ±${location?.accuracy == null ? '—' : Math.round(location.accuracy)} m` : location ? `Dernier signal · ${formatAge(location.updated_at)}` : 'En attente de position'}</small></div><span className={`presence-dot ${fresh ? 'online' : ''} ${own ? 'self' : ''}`} aria-label={fresh ? 'Position récente' : 'Sans position récente'} /></li>;
+                const nickname = member.profiles?.nickname ?? 'Joueur';
+                return <li key={member.user_id}><button type="button" className={`member-row ${focusedPlayerId === member.user_id ? 'selected' : ''}`} onClick={() => selectPlayer(member.user_id)} aria-label={`${nickname}, ${fresh ? 'centrer la carte sur sa position' : 'aucune position récente'}`} aria-current={focusedPlayerId === member.user_id ? 'true' : undefined}><span className={`member-avatar ${own ? 'self' : ''} ${fresh ? 'online' : ''}`}>{nickname.slice(0, 1).toUpperCase()}</span><span className="member-copy"><strong>{nickname}{own && <span className="you-tag">toi</span>}</strong><small>{fresh ? `${formatAge(location?.updated_at)} · ±${location?.accuracy == null ? '—' : Math.round(location.accuracy)} m` : location ? `Dernier signal · ${formatAge(location.updated_at)}` : 'En attente de position'}</small></span><span className={`presence-dot ${fresh ? 'online' : ''} ${own ? 'self' : ''}`} aria-label={fresh ? 'Position récente' : 'Sans position récente'} /></button></li>;
               })}</ul>
               {snapshot.members.length === 0 && <p className="squad-empty">Connexion à l’escouade…</p>}
               <div className="sheet-details">
