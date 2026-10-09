@@ -7,6 +7,13 @@ import type { PlayerLocation } from '../lib/types';
 
 type PlayerMarker = { marker: Marker; player: PlayerLocation };
 
+function formatSignalAge(updatedAt: string) {
+  const timestamp = Date.parse(updatedAt);
+  if (!Number.isFinite(timestamp) || timestamp > Date.now()) return 'horodatage invalide';
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  return seconds < 5 ? 'à l’instant' : `il y a ${seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min`}`;
+}
+
 function resizeAccuracyRing(record: PlayerMarker, zoom: number) {
   const ring = record.marker.getElement().querySelector<HTMLElement>('.accuracy-ring');
   if (!ring) return;
@@ -102,7 +109,7 @@ export default function MapView({ locations, me, recenterSignal }: { locations: 
       const glyph = element.querySelector('.map-marker span');
       if (glyph) glyph.textContent = player.nickname.slice(0, 1).toUpperCase();
       record.marker.setLngLat([player.longitude, player.latitude]);
-      record.marker.getPopup()?.setText(`${player.nickname} · précision ${precision}`);
+      record.marker.getPopup()?.setText(`${player.nickname} · précision ${precision} · ${formatSignalAge(player.updated_at)}`);
       resizeAccuracyRing(record, currentMap.getZoom());
     });
   }, [locations, me]);

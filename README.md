@@ -30,27 +30,30 @@ La clé `service_role` ne doit jamais être placée dans le navigateur ou dans V
 
 Le schéma applique RLS sur toutes les tables : les positions ne sont lisibles que par les membres du lobby, et les écritures de position sont limitées à l’utilisateur courant. La création, l’adhésion, la sortie et la fermeture passent par des fonctions SQL `security definer` avec validation côté base. Un index unique limite un utilisateur à un seul lobby actif.
 
-## Vérifications
+## Tests
 
 ```bash
+npm test
+npm run test:e2e
 npm run typecheck
 npm run build
 ```
 
-Le projet ne possède pas encore de test navigateur automatisé : la partie qui dépend d’un vrai GPS et de Realtime doit être validée sur deux appareils.
+Le test Playwright ouvre deux contextes mobiles isolés et simule Supabase via des routes mémoire : identités et positions n’atteignent jamais un projet Supabase, encore moins la production. Il couvre création, adhésion, visibilité des deux joueurs, précision GPS, refus puis reprise d’autorisation, position périmée, arrêt, départ, fermeture et rejet de l’ancien code. Au premier lancement, installer Chromium avec `npx playwright install chromium`.
 
-## Test à deux téléphones
+## Test opérateur sur deux téléphones
 
-1. Déployer sur Vercel ou un autre hébergement HTTPS.
-2. Ajouter les deux variables `NEXT_PUBLIC_*` dans l’environnement de déploiement.
-3. Ouvrir la même URL sur deux téléphones, avec deux pseudos.
-4. Sur le premier téléphone, créer un lobby et transmettre le code à six caractères.
-5. Sur le second, rejoindre le lobby avec ce code.
-6. Sur chaque appareil, activer la localisation et accepter l’autorisation précise.
-7. Vérifier les participants, les marqueurs, la précision affichée, le recentrage et la mise à jour après déplacement.
-8. Arrêter le partage sur un téléphone puis vérifier que sa position disparaît ; tester ensuite la sortie ou la fermeture du lobby.
+À faire sur un déploiement HTTPS (localhost est accepté en développement, mais un téléphone réel doit accéder à une origine HTTPS ou à un tunnel HTTPS). Préparer deux téléphones, deux navigateurs et deux pseudos distincts.
 
-La géolocalisation exige HTTPS sur téléphone (localhost est accepté en développement). Le suivi dépend de l’onglet ouvert et n’est pas garanti en arrière-plan sur iOS. Une position est considérée comme expirée après 45 secondes dans l’interface ; aucun historique n’est stocké.
+1. Ouvrir la même URL HUNT sur les deux téléphones, garder les pages au premier plan et laisser les écrans actifs pendant le test.
+2. Sur le premier, saisir un pseudo puis créer une chasse. Transmettre le code à six caractères au second téléphone.
+3. Sur le second, saisir un autre pseudo, entrer le code et rejoindre. Vérifier que chaque écran montre les deux membres.
+4. Autoriser la localisation précise dans la demande du navigateur. Sur iPhone : activer `Réglages > Confidentialité et sécurité > Service de localisation`, puis autoriser la localisation pour Safari et laisser `Position exacte` activée. Dans Safari, une permission refusée se corrige aussi depuis le menu de page > `Réglages du site web` > `Localisation` > `Demander` ou `Autoriser`. Sur Android : activer `Paramètres > Localisation`, puis dans Chrome ouvrir les informations du site > `Autorisations > Localisation` et autoriser la position précise; dans les permissions de Chrome, activer `Utiliser la position précise`. Les intitulés peuvent varier légèrement selon version/appareil.
+5. Si la localisation est refusée, vérifier l’état « Balise bloquée/Signal indisponible », accorder l’autorisation, puis toucher l’interrupteur de partage pour réessayer.
+6. Vérifier sur les deux écrans la carte, les marqueurs et la précision affichée. Marcher quelques mètres dehors et laisser le GPS stabiliser son signal avant d’évaluer la précision; HUNT affiche la mesure fournie par le téléphone, sans garantir une précision AirTag/UWB.
+7. Arrêter le partage sur un téléphone : son marqueur doit disparaître. Tester ensuite `Quitter la chasse` côté invité, puis `Fermer la chasse` côté hôte. L’ancien code doit être rejeté.
+
+La localisation web demande l’autorisation du navigateur et dépend des capacités du téléphone et de l’environnement. Le suivi HUNT est conçu pour la page au premier plan; iOS/Safari et les navigateurs mobiles peuvent suspendre l’activité en arrière-plan. Une position n’est plus active après 45 secondes sans nouvelle mesure et aucun historique de trajet n’est conservé. Voir aussi les guides [Apple sur la position précise iPhone](https://support.apple.com/en-us/102647), [Android sur les permissions de localisation précises](https://support.google.com/android/answer/6179507?hl=en) et [Chrome Android sur l’autorisation d’un site](https://support.google.com/chrome/answer/142065?co=GENIE.Platform%3DAndroid&hl=en).
 
 ## Déploiement Vercel
 

@@ -57,7 +57,20 @@ drop policy if exists positions_insert on public.positions;
 drop policy if exists positions_update on public.positions;
 drop policy if exists positions_delete on public.positions;
 
-create policy profiles_read on public.profiles for select to authenticated using (true);
+create or replace function public.can_read_profile(target_profile_id uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select target_profile_id = (select auth.uid()) or exists (
+    select 1
+    from public.room_members as viewer
+    join public.room_members as target using (room_id)
+    where viewer.user_id = (select auth.uid())
+      and target.user_id = target_profile_id
+  );
+$$;
+revoke all on function public.can_read_profile(uuid) from public;
+grant execute on function public.can_read_profile(uuid) to authenticated;
+
+create policy profiles_read on public.profiles for select to authenticated using (public.can_read_profile(id));
 create policy profiles_insert on public.profiles for insert to authenticated with check (id = (select auth.uid()));
 create policy profiles_update on public.profiles for update to authenticated using (id = (select auth.uid())) with check (id = (select auth.uid()));
 
@@ -104,7 +117,7 @@ begin
   end if;
 
   for attempt in 1..8 loop
-    generated_code := upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 6));
+    generated_code := pg_catalog.upper(pg_catalog.substr(pg_catalog.replace(pg_catalog.gen_random_uuid()::text, '-', ''), 1, 6));
     begin
       insert into public.rooms(code, owner_id) values (generated_code, (select auth.uid())) returning id into rid;
       exit;

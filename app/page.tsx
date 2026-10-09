@@ -2,22 +2,45 @@
 
 import dynamic from 'next/dynamic';
 import { ArrowRight, Check, ChevronDown, CircleAlert, Copy, Crosshair, LogOut, Radio, ShieldCheck, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGeolocation } from '../hooks/use-geolocation';
 import InstallPrompt from '../components/InstallPrompt';
 import { closeRoom, createRoom, ensureAnonymousSession, getProfile, getRoom, joinRoom, leaveRoom, loadLobby, saveProfile } from '../lib/hunt';
 import { supabase } from '../lib/supabase';
 import type { LobbySnapshot, Room } from '../lib/types';
+const { isPositionFresh } = require('../lib/location-freshness.cjs') as { isPositionFresh: (updatedAt: string, nowMs?: number) => boolean };
 const { messageFromError } = require('../lib/error-message.cjs') as { messageFromError: (error: unknown) => string };
+type ActiveRoomStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+const {
+  clearActiveRoom,
+  createAndActivateRoom,
+  joinAndActivateRoom,
+  refreshRoomMetadata,
+  restoreActiveRoom,
+} = require('../lib/active-room.cjs') as {
+  clearActiveRoom: (storage: ActiveRoomStorage | null) => void;
+  createAndActivateRoom: (create: typeof createRoom, ownerId: string, storage: ActiveRoomStorage | null, setRoom: (room: Room | null) => void) => Promise<Room>;
+  joinAndActivateRoom: (code: string, join: typeof joinRoom, storage: ActiveRoomStorage | null, setRoom: (room: Room | null) => void) => Promise<Room>;
+  refreshRoomMetadata: (room: Room, getRoomById: typeof getRoom) => Promise<Room>;
+  restoreActiveRoom: (storage: ActiveRoomStorage | null, getRoomById: typeof getRoom, setRoom: (room: Room | null) => void, isCurrent?: () => boolean) => Promise<Room | null>;
+};
 
 const MapView = dynamic(() => import('../components/MapView'), { ssr: false });
-const ROOM_STORAGE_KEY = 'hunt:active-room';
 type ErrorScope = 'global' | 'profile' | 'create' | 'join';
 
+function activeRoomStorage(): ActiveRoomStorage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 function formatAge(timestamp: number | string | null | undefined) {
-  if (!timestamp) return 'Aucun signal reçu';
+  if (timestamp == null || timestamp === '') return 'Aucun signal reçu';
   const value = typeof timestamp === 'number' ? timestamp : new Date(timestamp).getTime();
-  const seconds = Math.max(0, Math.floor((Date.now() - value) / 1000));
+  if (!Number.isFinite(value) || value > Date.now()) return 'Horodatage invalide';
+  const seconds = Math.floor((Date.now() - value) / 1000);
   if (seconds < 5) return 'À l’instant';
   if (seconds < 60) return `Il y a ${seconds} s`;
   const minutes = Math.floor(seconds / 60);
@@ -33,10 +56,10 @@ function SignalStatus({ state, accuracy, lastUpdate, errorMessage }: { state: Re
     unavailable: 'Signal indisponible',
   } as const;
   const detail = state === 'active'
-    ? `${formatAge(lastUpdate)} · ±${accuracy == null ? '—' : Math.round(accuracy)} m`
+    ? `${errorMessage ? `${errorMessage} · ` : ''}${formatAge(lastUpdate)} · ±${accuracy == null ? '—' : Math.round(accuracy)} m`
     : errorMessage ?? (state === 'requesting' ? 'Autorise la localisation dans ton navigateur.' : 'Aucun partage de position en cours.');
 
-  return <div className={`signal-status ${state}`}><span className="signal-status-mark" /><span><strong>{labels[state]}</strong><small>{detail}</small></span></div>;
+  return <div className={`signal-status ${state}`} role="status" aria-live="polite"><span className="signal-status-mark" /><span><strong>{labels[state]}</strong><small>{detail}</small></span></div>;
 }
 
 function CopyButton({ value, label = 'Copier' }: { value: string; label?: string }) {
@@ -93,6 +116,22 @@ export default function Home() {
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [squadExpanded, setSquadExpanded] = useState(false);
   const [desktopLobby, setDesktopLobby] = useState(false);
+  const [freshnessNow, setFreshnessNow] = useState(() => Date.now());
+  const activeRoomRef = useRef<Room | null>(null);
+  activeRoomRef.current = room;
+
+  useEffect(() => {
+    setFreshnessNow(Date.now());
+  }, [snapshot.locations]);
+
+  useEffect(() => {
+    const nextExpiry = snapshot.locations
+      .filter((location) => isPositionFresh(location.updated_at, freshnessNow))
+      .reduce((next, location) => Math.min(next, Date.parse(location.updated_at) + 45_000), Number.POSITIVE_INFINITY);
+    if (!Number.isFinite(nextExpiry)) return;
+    const timer = window.setTimeout(() => setFreshnessNow(Date.now()), Math.max(0, nextExpiry - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [snapshot.locations, freshnessNow]);
 
   useEffect(() => {
     const query = window.matchMedia('(min-width: 800px)');
@@ -131,19 +170,9 @@ export default function Home() {
           setNicknameInput(profile.nickname);
         }
 
-        const savedRoom = window.localStorage.getItem(ROOM_STORAGE_KEY);
-        if (savedRoom) {
-          try {
-            const parsed = JSON.parse(savedRoom) as { id?: string };
-            if (parsed.id) {
-              const restored = await getRoom(parsed.id);
-              if (restored && !cancelled) setRoom(restored);
-              else window.localStorage.removeItem(ROOM_STORAGE_KEY);
-            }
-          } catch {
-            window.localStorage.removeItem(ROOM_STORAGE_KEY);
-          }
-        }
+        await restoreActiveRoom(activeRoomStorage(), getRoom, (restored) => {
+          if (!cancelled && restored) setRoom(restored);
+        }, () => !cancelled);
       } catch (bootError) {
         if (!cancelled) showError(messageFromError(bootError));
       } finally {
@@ -158,13 +187,23 @@ export default function Home() {
     if (!room) return;
     try {
       setSyncing(true);
-      setSnapshot(await loadLobby(room));
+      const nextSnapshot = await loadLobby(room);
+      if (activeRoomRef.current?.id !== room.id) return;
+      if (!nextSnapshot.members.some((member) => member.user_id === userId)) {
+        await gps.stop();
+        clearActiveRoom(activeRoomStorage());
+        setRoom(null);
+        setSnapshot({ members: [], locations: [] });
+        clearError();
+        return;
+      }
+      setSnapshot(nextSnapshot);
     } catch (loadError) {
       showError(messageFromError(loadError));
     } finally {
       setSyncing(false);
     }
-  }, [room]);
+  }, [room, userId, gps.stop]);
 
   useEffect(() => {
     if (!room || !supabase) return;
@@ -184,12 +223,36 @@ export default function Home() {
   }, [room, refreshLobby]);
 
   useEffect(() => {
+    if (!room || room.owner_id !== null) return;
+    let cancelled = false;
+    let refreshing = false;
+    const refreshMetadata = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        const refreshed = await refreshRoomMetadata(room, getRoom);
+        if (!cancelled && refreshed.owner_id !== null) setRoom(refreshed);
+      } catch {
+        // Keep the recoverable lobby and retry without issuing join_room again.
+      } finally {
+        refreshing = false;
+      }
+    };
+    void refreshMetadata();
+    const retry = window.setInterval(() => void refreshMetadata(), 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(retry);
+    };
+  }, [room]);
+
+  useEffect(() => {
     if (!room) return;
     void gps.start();
     return () => { void gps.stop(); };
   }, [room?.id, gps.start, gps.stop]);
 
-  const recentLocations = useMemo(() => snapshot.locations.filter((location) => Date.now() - new Date(location.updated_at).getTime() < 45_000), [snapshot.locations]);
+  const recentLocations = useMemo(() => snapshot.locations.filter((location) => isPositionFresh(location.updated_at, freshnessNow)), [snapshot.locations, freshnessNow]);
   const activeLocationCount = recentLocations.length;
 
   async function handleLogin() {
@@ -217,10 +280,7 @@ export default function Home() {
     setBusy(true);
     clearError();
     try {
-      const created = await createRoom();
-      const nextRoom = { ...created, owner_id: userId };
-      setRoom(nextRoom);
-      window.localStorage.setItem(ROOM_STORAGE_KEY, JSON.stringify(nextRoom));
+      await createAndActivateRoom(createRoom, userId, activeRoomStorage(), setRoom);
     } catch (createError) {
       showError(messageFromError(createError), 'create');
     } finally {
@@ -232,9 +292,7 @@ export default function Home() {
     setBusy(true);
     clearError();
     try {
-      const nextRoom = await joinRoom(joinCode);
-      setRoom(nextRoom);
-      window.localStorage.setItem(ROOM_STORAGE_KEY, JSON.stringify(nextRoom));
+      await joinAndActivateRoom(joinCode, joinRoom, activeRoomStorage(), setRoom);
       setJoinCode('');
     } catch (joinError) {
       showError(messageFromError(joinError), 'join');
@@ -251,7 +309,7 @@ export default function Home() {
       await gps.stop();
       if (room.owner_id === userId) await closeRoom(room.id);
       else await leaveRoom(room.id);
-      window.localStorage.removeItem(ROOM_STORAGE_KEY);
+      clearActiveRoom(activeRoomStorage());
       setRoom(null);
       setSnapshot({ members: [], locations: [] });
     } catch (exitError) {
@@ -270,7 +328,7 @@ export default function Home() {
         else await leaveRoom(room.id);
       }
       await supabase?.auth.signOut();
-      window.localStorage.removeItem(ROOM_STORAGE_KEY);
+      clearActiveRoom(activeRoomStorage());
       setRoom(null);
       setSnapshot({ members: [], locations: [] });
       setUserId('');
@@ -345,7 +403,7 @@ export default function Home() {
               <div className="beacon-row"><SignalStatus state={gps.state} accuracy={gps.accuracy} lastUpdate={gps.lastUpdate} errorMessage={gps.errorMessage} /><button className={`beacon-switch ${sharing ? 'active' : ''}`} role="switch" aria-checked={sharing} aria-label="Partager ma position avec l’escouade" onClick={() => void (sharing ? gps.stop() : gps.start())}><span /></button></div>
               <ul className="members">{snapshot.members.map((member) => {
                 const location = snapshot.locations.find((item) => item.user_id === member.user_id);
-                const fresh = Boolean(location && Date.now() - new Date(location.updated_at).getTime() < 45_000);
+                const fresh = Boolean(location && isPositionFresh(location.updated_at, freshnessNow));
                 const own = member.user_id === userId;
                 return <li key={member.user_id}><span className={`member-avatar ${own ? 'self' : ''} ${fresh ? 'online' : ''}`}>{(member.profiles?.nickname ?? 'Joueur').slice(0, 1).toUpperCase()}</span><div><strong>{member.profiles?.nickname ?? 'Joueur'}{own && <span className="you-tag">toi</span>}</strong><small>{fresh ? `${formatAge(location?.updated_at)} · ±${location?.accuracy == null ? '—' : Math.round(location.accuracy)} m` : location ? `Dernier signal · ${formatAge(location.updated_at)}` : 'En attente de position'}</small></div><span className={`presence-dot ${fresh ? 'online' : ''} ${own ? 'self' : ''}`} aria-label={fresh ? 'Position récente' : 'Sans position récente'} /></li>;
               })}</ul>
