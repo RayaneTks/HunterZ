@@ -665,7 +665,7 @@ export default function Home() {
               <ul className="members">{snapshot.members.map((member) => {
                 const location = snapshot.locations.find((item) => item.user_id === member.user_id);
                 const fresh = Boolean(location && isPositionFresh(location.updated_at, freshnessNow));
-                const currentLocation = fresh ? location : null;
+                const currentLocation = fresh && location ? location : null;
                 const memberZoneState = getZoneState(currentLocation, sharedZone);
                 const own = member.user_id === userId;
                 const nickname = member.profiles?.nickname ?? 'Joueur';
