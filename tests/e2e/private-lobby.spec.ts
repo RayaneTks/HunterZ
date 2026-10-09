@@ -70,6 +70,12 @@ function createLobbyFixture() {
         members.set(userId, names[identity]);
         return respond(room.id);
       }
+      if (path === 'rpc/publish_location' && request.method() === 'POST') {
+        const record = body as Record<string, unknown>;
+        positions.set(userId,{user_id:userId,latitude:Number(record.p_latitude),longitude:Number(record.p_longitude),accuracy:Number(record.p_accuracy),updated_at:new Date().toISOString()});
+        return respond(null);
+      }
+      if (path === 'rpc/get_match') return respond(null);
       if (path === 'rpc/stop_sharing' && request.method() === 'POST') {
         positions.delete(userId);
         return respond(null);
@@ -180,6 +186,9 @@ test('two mobile players create, join, share, stop, leave, and close one private
     await hostClient.page.getByRole('button', { name: 'Créer un salon' }).click();
     const code = await hostClient.page.locator('.room-identity h1').innerText();
     expect(code).toBe('HUNT01');
+    await expandSquad(hostClient.page);
+    await hostClient.page.getByRole('switch').click();
+    await hostClient.page.getByRole('button', {name:'Continuer vers l’autorisation'}).click();
     await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' }).getByText(names.host)).toBeVisible();
     await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' }).getByRole('status')).toContainText('±9 m');
 
@@ -187,6 +196,9 @@ test('two mobile players create, join, share, stop, leave, and close one private
     await guestClient.page.locator('#join-code').fill(code);
     await guestClient.page.getByRole('button', { name: 'Rejoindre la chasse' }).click();
     await expect(guestClient.page.getByRole('heading', { name: code })).toBeVisible();
+    await expandSquad(guestClient.page);
+    await guestClient.page.getByRole('switch').click();
+    await guestClient.page.getByRole('button', {name:'Continuer vers l’autorisation'}).click();
     await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' }).getByText(names.guest)).toBeVisible();
     await expect(guestClient.page.getByRole('complementary', { name: 'Escouade' }).getByText(names.host)).toBeVisible();
     expect(fixture.members.size).toBe(2);
@@ -194,6 +206,7 @@ test('two mobile players create, join, share, stop, leave, and close one private
     await expect(guestClient.page.getByRole('complementary', { name: 'Escouade' }).getByRole('status')).toContainText('Balise bloquée');
     await guestClient.context.grantPermissions(['geolocation'], { origin: baseURL });
     await guestClient.page.getByRole('switch', { name: 'Partager ma position avec l’escouade' }).click();
+    await guestClient.page.getByRole('button', {name:'Continuer vers l’autorisation'}).click();
     await expect(guestClient.page.getByRole('complementary', { name: 'Escouade' }).getByRole('status')).toContainText('±12 m');
 
     await guestClient.context.setGeolocation(null);
@@ -203,6 +216,7 @@ test('two mobile players create, join, share, stop, leave, and close one private
     await expect(retrySharing).toHaveAttribute('aria-checked', 'false');
     await guestClient.context.setGeolocation({ latitude: 43.2971, longitude: 5.371, accuracy: 4 });
     await retrySharing.click();
+    await guestClient.page.getByRole('button', {name:'Continuer vers l’autorisation'}).click();
     await expect(guestClient.page.getByRole('complementary', { name: 'Escouade' }).getByRole('status')).toContainText('±4 m', { timeout: 10_000 });
     await expect.poll(() => fixture.positions.get(fixture.users.guest.id)?.accuracy).toBe(4);
     await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' })).toContainText('±4 m', { timeout: 15_000 });

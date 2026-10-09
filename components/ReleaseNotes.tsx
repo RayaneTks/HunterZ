@@ -36,10 +36,10 @@ export default function ReleaseNotes() {
     try {
       const unseenRelease = window.localStorage.getItem('hunt:last-seen-deployment') !== buildRelease.deploymentId;
       setVisible(unseenRelease);
-      setOpen(unseenRelease);
+      
     } catch {
       setVisible(true);
-      setOpen(true);
+
     }
 
     let stopped = false;
@@ -52,7 +52,7 @@ export default function ReleaseNotes() {
         setRelease(latest);
         setNeedsReload(true);
         setVisible(true);
-        setOpen(true);
+  
       } catch {
         // The in-app release label remains available if the version check is offline.
       }
@@ -123,3 +123,4 @@ export default function ReleaseNotes() {
     </>
   );
 }
+
