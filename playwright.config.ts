@@ -23,6 +23,11 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
       NEXT_PUBLIC_SUPABASE_ANON_KEY: 'local-playwright-anon-key',
       NEXT_TELEMETRY_DISABLED: '1',
+      // Exercise release entry consistently without depending on a local .env file.
+      VERCEL: '1',
+      VERCEL_ENV: 'preview',
+      VERCEL_DEPLOYMENT_ID: 'e2e-release-fixture',
+      VERCEL_URL: 'e2e.invalid',
     },
   },
 });
