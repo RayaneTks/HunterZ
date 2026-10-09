@@ -52,7 +52,7 @@ export function useGeolocation(roomId: string | undefined, userId: string) {
         geolocation,
         writePosition: async (position) => {
           if (!supabase) throw new Error('Supabase indisponible.');
-          const { error } = await supabase.from('positions').upsert(position);
+          const { error } = await supabase.rpc('publish_location', {p_room_id:position.room_id,p_latitude:position.latitude,p_longitude:position.longitude,p_accuracy:position.accuracy});
           if (error) throw error;
         },
         removePosition: stopSharing,
@@ -227,7 +227,7 @@ export function useGeolocation(roomId: string | undefined, userId: string) {
       accuracy: position.accuracy,
       updated_at: new Date(fixAt).toISOString(),
     };
-    void supabase.from('positions').upsert(payload).then(({ error }) => {
+    void supabase.rpc('publish_location', {p_room_id:payload.room_id,p_latitude:payload.latitude,p_longitude:payload.longitude,p_accuracy:payload.accuracy}).then(({ error }) => {
       if (error && nativeSession.current === session) setErrorMessage('Position reçue, mais pas encore transmise. Le prochain point réessaiera.');
     });
   }

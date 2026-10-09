@@ -187,9 +187,11 @@ test('two mobile players create, join, share, stop, leave, and close one private
     const code = await hostClient.page.locator('.room-identity h1').innerText();
     expect(code).toBe('HUNT01');
     await expandSquad(hostClient.page);
+    await expect(hostClient.page.getByRole('heading', {name:'La Piste'})).toBeVisible();
+    await expect(hostClient.page.getByRole('button', {name:'Préparer la manche'})).toBeDisabled();
     await hostClient.page.getByRole('switch').click();
     await hostClient.page.getByRole('button', {name:'Continuer vers l’autorisation'}).click();
-    await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' }).getByText(names.host)).toBeVisible();
+    await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' }).locator('.members').getByText(names.host)).toBeVisible();
     await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' }).getByRole('status')).toContainText('±9 m');
 
     await enterWithNickname(guestClient.page, names.guest);
@@ -199,8 +201,8 @@ test('two mobile players create, join, share, stop, leave, and close one private
     await expandSquad(guestClient.page);
     await guestClient.page.getByRole('switch').click();
     await guestClient.page.getByRole('button', {name:'Continuer vers l’autorisation'}).click();
-    await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' }).getByText(names.guest)).toBeVisible();
-    await expect(guestClient.page.getByRole('complementary', { name: 'Escouade' }).getByText(names.host)).toBeVisible();
+    await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' }).locator('.members').getByText(names.guest)).toBeVisible();
+    await expect(guestClient.page.getByRole('complementary', { name: 'Escouade' }).locator('.members').getByText(names.host)).toBeVisible();
     expect(fixture.members.size).toBe(2);
 
     await expect(guestClient.page.getByRole('complementary', { name: 'Escouade' }).getByRole('status')).toContainText('Balise bloquée');

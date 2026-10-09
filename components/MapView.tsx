@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import { type GeoJSONSource, type Map as MapInstance, type Marker } from 'maplibre-gl';
+import type { MatchSnapshot } from '../lib/match';
 import type { HuntZone, PlayerLocation } from '../lib/types';
 
 type PlayerMarker = { marker: Marker; player: PlayerLocation };
@@ -52,7 +53,9 @@ function resizeAccuracyRing(record: PlayerMarker, zoom: number) {
   ring.style.height = ring.style.width;
 }
 
-export default function MapView({ locations, me, recenterSignal, focusedPlayerId, onSelectPlayer, zone = null, onMapTap, onMapCenterChange, placementMode = false }: { locations: PlayerLocation[]; me: string; recenterSignal: number; focusedPlayerId: string | null; onSelectPlayer: (playerId: string) => void; zone?: HuntZone | null; onMapTap?: (center: { latitude: number; longitude: number }) => void; onMapCenterChange?: (center: { latitude: number; longitude: number }) => void; placementMode?: boolean }) {
+export default function MapView({ locations, me, recenterSignal, focusedPlayerId, onSelectPlayer, zone = null, onMapTap, onMapCenterChange, placementMode = false, clue = null, extraction = null }: { locations: PlayerLocation[]; me: string; recenterSignal: number; focusedPlayerId: string | null; onSelectPlayer: (playerId: string) => void; zone?: HuntZone | null; onMapTap?: (center: { latitude: number; longitude: number }) => void; onMapCenterChange?: (center: { latitude: number; longitude: number }) => void; placementMode?: boolean; clue?: MatchSnapshot["clue"]; extraction?: HuntZone | null }) {
+  const clueRef = useRef(clue); clueRef.current = clue;
+  const extractionRef = useRef(extraction); extractionRef.current = extraction;
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapInstance | null>(null);
   const markers = useRef(new Map<string, PlayerMarker>());
@@ -151,6 +154,28 @@ export default function MapView({ locations, me, recenterSignal, focusedPlayerId
       map.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance) return;
+    const apply = () => {
+      const current = clueRef.current;
+      const data: GeoJSON.FeatureCollection = {type:'FeatureCollection',features:current?[{type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[[[current.west,current.south],[current.east,current.south],[current.east,current.north],[current.west,current.north],[current.west,current.south]]]}}]:[]};
+      if (!instance.getSource('hunt-clue')) {
+        instance.addSource('hunt-clue',{type:'geojson',data});
+        instance.addLayer({id:'hunt-clue-fill',type:'fill',source:'hunt-clue',paint:{'fill-color':'#f4cb76','fill-opacity':0.15}});
+        instance.addLayer({id:'hunt-clue-line',type:'line',source:'hunt-clue',paint:{'line-color':'#f4cb76','line-width':2,'line-dasharray':[3,2]}});
+        instance.addSource('hunt-extraction',{type:'geojson',data:circleFeature(extractionRef.current)});
+        instance.addLayer({id:'hunt-extraction-line',type:'line',source:'hunt-extraction',filter:['==',['geometry-type'],'Polygon'],paint:{'line-color':'#a4c5a8','line-width':3}});
+      } else {
+        (instance.getSource('hunt-clue') as GeoJSONSource).setData(data);
+        (instance.getSource('hunt-extraction') as GeoJSONSource).setData(circleFeature(extractionRef.current));
+      }
+    };
+    if (instance.isStyleLoaded()) apply(); else instance.once('load',apply);
+    return () => { instance.off('load',apply); };
+  }, [clue,extraction]);
+
 
   useEffect(() => {
     if (!placementMode || !map.current) return;

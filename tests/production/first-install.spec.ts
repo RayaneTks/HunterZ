@@ -1,0 +1,2 @@
+import {expect,test} from '@playwright/test';
+test('first installation does not advertise a fictitious update',async({page})=>{await page.route('**/auth/v1/**',route=>route.abort());await page.route('**/rest/v1/**',route=>route.abort());await page.goto('/');await page.getByLabel('Ton pseudo').waitFor();await page.evaluate(async()=>{await navigator.serviceWorker.ready;});await expect(page.getByRole('complementary',{name:'Mise à jour'})).toHaveCount(0);});

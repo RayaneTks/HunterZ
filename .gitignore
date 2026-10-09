@@ -10,3 +10,6 @@ playwright-report/
 supabase/.temp
 /public/release.json
 .env*.local
+
+/.superpowers/
+/graphify-out/

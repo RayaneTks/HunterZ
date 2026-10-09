@@ -46,7 +46,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
 
   e2e:
-    name: Mobile lobby end-to-end
+    name: Mobile game and PWA end-to-end
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -58,3 +58,9 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      - run: npx playwright test --config playwright.production.config.ts

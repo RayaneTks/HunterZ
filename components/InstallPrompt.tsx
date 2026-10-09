@@ -1,53 +1,23 @@
 'use client';
-
-import { Download, Share, X } from 'lucide-react';
+import { Download, ChevronDown } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { canInstallPwa, isStandaloneMode } from '../lib/pwa-install';
-
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-};
-
+import { canInstallPwa, getInstallHelp, isStandaloneMode } from '../lib/pwa-install';
+type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{outcome:string}> };
 export default function InstallPrompt() {
-  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
-  const [ios, setIos] = useState(false);
-  const [standalone, setStandalone] = useState(true);
-  const [dismissed, setDismissed] = useState(false);
-
-  useEffect(() => {
-    const mode = window.matchMedia('(display-mode: standalone)').matches;
-    const iosMode = 'standalone' in window.navigator && Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
-    setStandalone(isStandaloneMode(mode ? 'standalone' : 'browser', iosMode));
-    setIos(/iphone|ipad|ipod/i.test(window.navigator.userAgent));
-
-    const onBeforeInstall = (event: Event) => {
-      if (!canInstallPwa(event)) return;
-      event.preventDefault();
-      setInstallEvent(event as BeforeInstallPromptEvent);
-    };
-    window.addEventListener('beforeinstallprompt', onBeforeInstall);
-    return () => window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-  }, []);
-
-  async function install() {
-    if (!installEvent) return;
-    await installEvent.prompt();
-    await installEvent.userChoice;
-    setInstallEvent(null);
-  }
-
-  if (standalone || dismissed || (!installEvent && !ios)) return null;
-
-  return (
-    <aside className="install-prompt" aria-label="Installer HUNT">
-      <div className="install-icon"><Download size={18} strokeWidth={2.4} /></div>
-      <div className="install-copy">
-        <strong>Installer HUNT</strong>
-        <span>{ios ? <>Partager <Share size={13} /> puis « Sur l’écran d’accueil ».</> : 'Retrouve ta chasse en un geste.'}</span>
-      </div>
-      {installEvent && <button className="button button-small" onClick={() => void install()}>Installer</button>}
-      <button className="icon-button" onClick={() => setDismissed(true)} aria-label="Fermer la suggestion"><X size={17} /></button>
-    </aside>
-  );
+ const [event,setEvent]=useState<InstallEvent|null>(null);
+ const [device,setDevice]=useState({userAgent:'',maxTouchPoints:0,standalone:true});
+ const [error,setError]=useState('');
+ useEffect(()=>{
+  const refresh=()=>setDevice({userAgent:navigator.userAgent,maxTouchPoints:navigator.maxTouchPoints,standalone:isStandaloneMode(window.matchMedia('(display-mode: standalone)').matches?'standalone':'browser',Boolean((navigator as Navigator&{standalone?:boolean}).standalone))});
+  refresh();
+  const offered=(e:Event)=>{if(canInstallPwa(e)){e.preventDefault();setEvent(e as InstallEvent);}};
+  const installed=()=>{setEvent(null);setDevice(d=>({...d,standalone:true}));};
+  window.addEventListener('beforeinstallprompt',offered);window.addEventListener('appinstalled',installed);
+  const mode=window.matchMedia('(display-mode: standalone)');mode.addEventListener('change',refresh);
+  return()=>{window.removeEventListener('beforeinstallprompt',offered);window.removeEventListener('appinstalled',installed);mode.removeEventListener('change',refresh);};
+ },[]);
+ const help=getInstallHelp({...device,hasPrompt:!!event});
+ if(help.kind==='installed')return null;
+ async function install(){if(!event)return;setError('');try{await event.prompt();await event.userChoice;setEvent(null);}catch{setError('Installation indisponible. Utilise le menu de ton navigateur.');setEvent(null);}}
+ return <details className="install-help"><summary><Download size={16}/><span>Installer HUNT</span><ChevronDown size={16}/></summary><div><p>{help.text}</p>{event&&<button className="button button-soft" onClick={()=>void install()}>Installer</button>}{error&&<p role="status">{error}</p>}<small>Aucune boutique, aucun téléchargement de compte.</small></div></details>;
 }

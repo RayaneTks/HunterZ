@@ -28,6 +28,8 @@ export default function ReleaseNotes() {
   const [visible, setVisible] = useState(false);
   const [open, setOpen] = useState(false);
   const [needsReload, setNeedsReload] = useState(false);
+  const [inMatch,setInMatch] = useState(false);
+  useEffect(() => { const onMatch = (event:Event) => setInMatch(Boolean((event as CustomEvent).detail));window.addEventListener('hunt:match-active',onMatch);return () => window.removeEventListener('hunt:match-active',onMatch); },[]);
   const trigger = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
 
@@ -115,7 +117,8 @@ export default function ReleaseNotes() {
             <li><span className="rec-dot" /><span>{release.target === 'production' ? 'Version en ligne' : `Version ${release.target}`}</span><small>{formattedDate}</small></li>
           </ul>
           <div className="release-dialog-actions">
-            {needsReload && <button className="button button-primary" onClick={() => window.location.reload()}><RefreshCw size={15} /> Recharger HUNT</button>}
+            {needsReload && inMatch && <p className="muted">Mise à jour disponible après la manche.</p>}
+            {needsReload && <button className="button button-primary" disabled={inMatch} onClick={() => {if(!inMatch)window.location.reload();}}><RefreshCw size={15} /> Recharger HUNT</button>}
             <button className="button button-soft" onClick={() => { if (needsReload) setOpen(false); else dismiss(); }}>{needsReload ? 'Plus tard' : 'Compris'}</button>
           </div>
         </section>

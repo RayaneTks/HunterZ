@@ -1,6 +1,12 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import Brand from '../components/Brand';
+import HomeScreen from '../components/HomeScreen';
+import LobbyScreen from '../components/LobbyScreen';
+import MatchScreen from '../components/MatchScreen';
+import MatchPreparation from '../components/MatchPreparation';
+import { useMatch } from '../hooks/use-match';
 import { Capacitor } from '@capacitor/core';
 import { ArrowRight, Check, ChevronDown, CircleAlert, Compass, Copy, Crosshair, LogOut, MapPin, Radio, Share2, ShieldCheck, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -10,7 +16,7 @@ import { closeRoom, createRoom, ensureAnonymousSession, getProfile, getRoom, joi
 import { hapticTap } from '../lib/haptics';
 import { supabase } from '../lib/supabase';
 import type { HuntZone, LobbySnapshot, Room } from '../lib/types';
-import GameModeIdeas from '../components/GameModeIdeas';
+
 const { isPositionFresh } = require('../lib/location-freshness.cjs') as { isPositionFresh: (updatedAt: string, nowMs?: number) => boolean };
 const { getZoneState } = require('../lib/zone-state.cjs') as { getZoneState: (location: { latitude: number; longitude: number; accuracy: number | null } | null, zone: HuntZone | null) => 'undefined' | 'no-signal' | 'uncertain' | 'edge' | 'inside' | 'outside' };
 const { messageFromError } = require('../lib/error-message.cjs') as { messageFromError: (error: unknown) => string };
@@ -157,10 +163,6 @@ function ActionError({ message, onRetry, onDismiss }: { message: string; onRetry
   return <div className="action-error" role="alert"><CircleAlert size={15} /><span>{message}</span>{onRetry && <button className="button button-ghost button-small action-retry" onClick={onRetry}>Réessayer</button>}<button className="icon-button" onClick={onDismiss} aria-label="Fermer"><X size={15} /></button></div>;
 }
 
-function Brand() {
-  return <div className="brand-lockup" aria-label="HUNT"><svg className="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path fill="currentColor" d="M5 5h13v5h-8v8H5zm25 0h13v13h-5v-8h-8zM5 30h5v8h8v5H5zm33 0h5v13H30v-5h8z" /><circle cx="24" cy="24" r="5" fill="#f05a50" /></svg><svg className="brand-name" viewBox="0 0 136 24" aria-hidden="true"><path fill="currentColor" d="M0 0h7v9h14V0h7v24h-7v-9H7v9H0zM36 0h7v17h14V0h7v19q0 5-5 5H41q-5 0-5-5zM73 0h7l15 15V0h7v24h-7L80 9v15h-7zM110 0h26v7h-9v17h-8V7h-9z" /></svg></div>;
-}
-
 function CompactUserActions({ nickname, editing, nicknameInput, busy, errorMessage, onEdit, onSave, onCancel, onLogout, onChange }: { nickname: string; editing: boolean; nicknameInput: string; busy: boolean; errorMessage?: string; onEdit: () => void; onSave: () => void; onCancel: () => void; onLogout: () => void; onChange: (value: string) => void }) {
   const menuRef = useRef<HTMLDetailsElement>(null);
   const triggerRef = useRef<HTMLElement>(null);
@@ -198,6 +200,7 @@ export default function Home() {
   const [nickname, setNickname] = useState('');
   const [nicknameInput, setNicknameInput] = useState('');
   const [room, setRoom] = useState<Room | null>(null);
+  const game = useMatch(room?.id ?? null);
   const [snapshot, setSnapshot] = useState<LobbySnapshot>({ members: [], locations: [] });
   const [joinCode, setJoinCode] = useState('');
   const [pendingInvite, setPendingInvite] = useState('');
@@ -211,7 +214,6 @@ export default function Home() {
   const [sheetMode, setSheetMode] = useState<SquadSheetMode>('compact');
   const squadExpanded = sheetMode !== 'compact';
   const [gpsConsentOpen, setGpsConsentOpen] = useState(false);
-  const [ideasOpen, setIdeasOpen] = useState(false);
   const [desktopLobby, setDesktopLobby] = useState(false);
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState('');
@@ -221,14 +223,9 @@ export default function Home() {
   const [zoneDraftRadius, setZoneDraftRadius] = useState(500);
   const [zoneBusy, setZoneBusy] = useState(false);
   const [zoneError, setZoneError] = useState('');
-  const sheetTouchStart = useRef<number | null>(null);
-  const didSheetSwipe = useRef(false);
   const gpsConsentTrigger = useRef<HTMLButtonElement>(null);
   const gpsConsentDialog = useRef<HTMLElement>(null);
   const gpsConsentConfirm = useRef<HTMLButtonElement>(null);
-  const ideasTrigger = useRef<HTMLButtonElement>(null);
-  const ideasDialog = useRef<HTMLElement>(null);
-  const ideasClose = useRef<HTMLButtonElement>(null);
   const [freshnessNow, setFreshnessNow] = useState(() => Date.now());
   const activeRoomRef = useRef<Room | null>(null);
   activeRoomRef.current = room;
@@ -257,19 +254,14 @@ export default function Home() {
   const gps = useGeolocation(room?.id, userId);
 
   useEffect(() => {
-    if (!gpsConsentOpen && !ideasOpen) return;
-    const activeDialog = gpsConsentOpen ? gpsConsentDialog.current : ideasDialog.current;
-    (gpsConsentOpen ? gpsConsentConfirm.current : ideasClose.current)?.focus();
+    if (!gpsConsentOpen) return;
+    const activeDialog = gpsConsentDialog.current;
+    gpsConsentConfirm.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        if (gpsConsentOpen) {
-          setGpsConsentOpen(false);
-          gpsConsentTrigger.current?.focus();
-        } else {
-          setIdeasOpen(false);
-          ideasTrigger.current?.focus();
-        }
+        setGpsConsentOpen(false);
+        gpsConsentTrigger.current?.focus();
         return;
       }
       if (event.key !== 'Tab' || !activeDialog) return;
@@ -282,7 +274,7 @@ export default function Home() {
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [gpsConsentOpen, ideasOpen]);
+  }, [gpsConsentOpen]);
   const sharedZone = useMemo(() => room?.zone_center_lat != null && room.zone_center_lng != null && room.zone_radius_m != null
     ? { latitude: room.zone_center_lat, longitude: room.zone_center_lng, radiusMeters: room.zone_radius_m }
     : null, [room?.zone_center_lat, room?.zone_center_lng, room?.zone_radius_m]);
@@ -598,6 +590,8 @@ export default function Home() {
 
   const sharing = gps.state === 'active' || gps.state === 'requesting';
 
+  if (room && game.match) return <MatchScreen match={game.match} me={userId} host={room.owner_id===userId} code={room.code} gps={gps} fresh={game.fresh} error={game.error} busy={game.busy} onAction={game.act} onExit={() => void handleExit()} />;
+
   return (
     <main className={`app-shell ${room ? 'app-shell-lobby' : ''}`}>
       <header className="app-header">
@@ -606,40 +600,9 @@ export default function Home() {
       </header>
 
       {error && errorScope === 'global' && <div className="alert" role="alert"><CircleAlert size={17} /><span>{error}</span><button className="icon-button" onClick={clearError} aria-label="Fermer"><X size={18} /></button></div>}
-      {!room && <InstallPrompt />}
 
-      {!nickname ? (
-        <section className="welcome-layout">
-          <div className="welcome-copy"><p className="eyebrow"><span className="rec-dot" /> LE TERRAIN, C’EST TA VILLE.</p><h1>La chasse<br />commence ici.</h1><p className="lead-small">Réunis ton escouade.<br />On se retrouve dehors.</p></div>
-          <form className="entry-card" aria-busy={busy} onSubmit={(event) => { event.preventDefault(); void handleLogin(); }}>
-            <label className="field-label" htmlFor="nickname">Ton pseudo</label>
-            {pendingInvite && <p className="invite-context">Invitation à rejoindre la chasse <strong>{pendingInvite}</strong>. Après ton pseudo, tu entreras directement dans le salon.</p>}
-            <input id="nickname" placeholder="Comment on t’appelle ?" value={nicknameInput} minLength={2} maxLength={24} required onChange={(event) => setNicknameInput(event.target.value)} autoComplete="nickname" enterKeyHint="go" />
-            {error && errorScope === 'profile' && <ActionError message={error} onDismiss={clearError} />}
-            <button type="submit" className="button button-primary button-wide" disabled={busy} aria-label={busy ? 'Connexion en cours' : undefined}>{busy ? <><span className="button-spinner" aria-hidden="true" /> Connexion…</> : <>Entrer dans HUNT<ArrowRight size={18} /></>}</button>
-            <p className="privacy-note"><ShieldCheck size={14} /> Ta position se partage uniquement dans ta chasse.</p>
-          </form>
-        </section>
-      ) : !room ? (
-        <section className="command-view">
-          <div className="page-intro"><p className="greeting">Salut, {nickname}.</p><h1>Monte ton<br />escouade.</h1><p className="lead-small">Crée un salon privé ou rejoins ton équipe avec un code.</p></div>
-          <div className="command-actions">
-            <section className="primary-action">
-              <button className="button button-primary button-wide" disabled={busy} aria-busy={busy} onClick={() => { hapticTap(); void handleCreate(); }}>{busy ? <><span className="button-spinner" aria-hidden="true" /> Création…</> : <>Créer un salon<ArrowRight size={18} /></>}</button>
-              {error && errorScope === 'create' && <ActionError message={error} onRetry={() => void handleCreate()} onDismiss={clearError} />}
-            </section>
-            <form className="join-action" onSubmit={(event) => { event.preventDefault(); if (joinCode.length === 6) void handleJoin(); }}>
-              <label className="join-label" htmlFor="join-code">Déjà un code ?</label>
-              <div className="join-row"><input id="join-code" placeholder="CODE DE CHASSE" value={joinCode} maxLength={6} minLength={6} required autoComplete="off" autoCapitalize="characters" spellCheck={false} enterKeyHint="go" onChange={(event) => setJoinCode(event.target.value.replace(/[^a-z0-9]/gi, '').toUpperCase())} /><button type="submit" className="button button-soft" disabled={busy || joinCode.length !== 6} aria-label={busy ? 'Connexion à la chasse en cours' : 'Rejoindre la chasse'}>{busy ? <span className="button-spinner" aria-hidden="true" /> : <ArrowRight size={20} />}</button></div>
-              {error && errorScope === 'join' && <ActionError message={error} onRetry={() => void handleJoin()} onDismiss={clearError} />}
-            </form>
-          </div>
-          <p className="privacy-note"><ShieldCheck size={14} /> Terrain privé. Position visible par ton escouade.</p>
-          <div className="entry-location"><span className="rec-dot" /> PRÊT POUR LE TERRAIN <span>Chasse privée</span></div>
-        </section>
-      ) : (
-        <section className="lobby-view" aria-label="Lobby de la chasse">
-          <div className="field-map-shell">
+      {!room ? <HomeScreen nickname={nickname} nicknameInput={nicknameInput} invite={pendingInvite} joinCode={joinCode} busy={busy} error={error} errorScope={errorScope} onNickname={setNicknameInput} onCode={setJoinCode} onLogin={() => void handleLogin()} onCreate={() => void handleCreate()} onJoin={() => void handleJoin()} /> : (
+        <LobbyScreen map={<>
             <MapView
               key={room.id}
               locations={recentLocations}
@@ -656,17 +619,16 @@ export default function Home() {
               onMapCenterChange={zoneEditing && zonePlacingCenter ? setZoneDraftCenter : undefined}
               placementMode={zoneEditing && zonePlacingCenter}
             />
+        </>} tools={<>
             <div className="field-map-header"><div className="room-identity"><p className="eyebrow">CHASSE PRIVÉE</p><h1>{room.code}</h1></div><div className="room-invite-actions"><InviteButton code={room.code} /><CopyButton value={room.code} label="Copier le code" /></div></div>
             <div className="map-live"><span className="rec-dot" /><span>{syncing ? 'Actualisation' : activeLocationCount ? 'Balises récentes' : 'En attente'} · {activeLocationCount}</span></div>
             <p className="sr-only" role="status" aria-live="polite">{actionNotice}</p>
             {zonePlacingCenter && <div className="map-pick-banner" role="status"><MapPin size={16} /> Fais glisser la carte sous le repère, puis confirme le point choisi.</div>}
             {sharedZone && <div className={`zone-map-state zone-state-${ownZoneState}`} role="status" aria-live="polite"><MapPin size={17} /><span><strong>{zoneStateLabel(ownZoneState)}</strong><small>{zoneStateHint(ownZoneState)}</small></span></div>}
             {activeLocationCount === 0 && !sharedZone && <p className="map-empty-readout">Active une balise pour apparaître sur la carte.</p>}
-            <button className="map-recenter" disabled={!ownFreshLocation || (zoneEditing && zonePlacingCenter)} onClick={() => { setRecenterSignal((value) => value + 1); setFocusedPlayerId(userId); }} aria-label={zoneEditing && zonePlacingCenter ? 'Recentrage indisponible pendant le placement du terrain' : ownFreshLocation ? 'Centrer sur ma position' : 'Ta position récente n’est pas disponible. Active le partage pour te localiser.'}><Crosshair size={21} /></button>
-          </div>
-
+            <button className="map-recenter" disabled={!ownFreshLocation || (zoneEditing && zonePlacingCenter)} onClick={() => { setRecenterSignal((value) => value + 1); setFocusedPlayerId(userId); }} aria-label={zoneEditing && zonePlacingCenter ? 'Recentrage indisponible pendant le placement du terrain' : ownFreshLocation ? 'Centrer sur ma position' : 'Ta position récente n’est pas disponible. Active le partage pour te localiser.'}><Crosshair size={21} /></button>        </>} sheet={<>
           <aside className="squad-sheet" data-sheet-state={sheetMode} aria-label="Escouade">
-            <button className="sheet-toggle" disabled={desktopLobby} onTouchStart={(event) => { const target = event.target; if (target instanceof Element && target.closest('.sheet-handle')) { sheetTouchStart.current = event.touches[0]?.clientY ?? null; didSheetSwipe.current = false; } }} onTouchEnd={(event) => { if (desktopLobby || sheetTouchStart.current == null) return; const delta = (event.changedTouches[0]?.clientY ?? sheetTouchStart.current) - sheetTouchStart.current; if (Math.abs(delta) > 48) { didSheetSwipe.current = true; setSheetMode((current) => delta < 0 ? (current === 'compact' ? 'intermediate' : 'expanded') : (current === 'expanded' ? 'intermediate' : 'compact')); hapticTap(); } sheetTouchStart.current = null; }} onClick={() => { if (didSheetSwipe.current) { didSheetSwipe.current = false; return; } setSheetMode((current) => current === 'compact' ? 'intermediate' : current === 'expanded' ? 'intermediate' : 'compact'); hapticTap(); }} aria-expanded={squadExpanded || desktopLobby} aria-controls="squad-content"><span className="sheet-handle" aria-hidden="true" /><span className="sheet-heading"><span>Escouade <small>{snapshot.members.length}</small></span><ChevronDown size={19} /></span><span className="sr-only">{squadExpanded ? 'Réduire le panneau' : 'Développer le panneau'}</span></button>
+            <button className="sheet-toggle" disabled={desktopLobby} onClick={() => setSheetMode(current => current === 'compact' ? 'intermediate' : 'compact')} aria-expanded={squadExpanded || desktopLobby} aria-controls="squad-content"><span className="sheet-handle" aria-hidden="true" /><span className="sheet-heading"><span>Escouade <small>{snapshot.members.length}</small></span><ChevronDown size={19} /></span><span className="sr-only">{squadExpanded ? 'Réduire le panneau' : 'Développer le panneau'}</span></button>
             <div className="beacon-row"><SignalStatus state={gps.state} accuracy={gps.accuracy} lastUpdate={gps.lastUpdate} errorMessage={gps.errorMessage} /><button ref={gpsConsentTrigger} className={`beacon-switch ${sharing ? 'active' : ''}`} role="switch" aria-checked={sharing} aria-label="Partager ma position avec l’escouade" onClick={() => { if (sharing) void gps.stop(); else setGpsConsentOpen(true); }}><span /></button></div>
             <p className="beacon-privacy-note">{sharing ? 'Ta position est partagée avec les membres de ce salon. Tu peux arrêter à tout moment.' : 'Aucune position n’est partagée avant ton accord. Seuls les membres de ce salon la verront.'}</p>
             <div className="squad-content" id="squad-content">
@@ -709,14 +671,17 @@ export default function Home() {
                   </div>
                 </div>}
               </section>
-              <button ref={ideasTrigger} type="button" className="button button-soft button-wide ideas-open-button" onClick={() => setIdeasOpen(true)}><Compass size={16} />Carnet d’idées · modes non jouables</button>
+              <MatchPreparation members={snapshot.members} host={room.owner_id===userId} terrainReady={Boolean(sharedZone)} busy={game.busy} available={game.available} onPrepare={target => void game.act('create',{target})} />
+              {game.error && <p className="action-error" role="alert">{game.error}</p>}
+
               <div className="sheet-details">
                 <div className="precision-option"><ShieldCheck size={18} /><span><strong>Localisation précise</strong><small>HUNT demande la meilleure précision disponible. Active « Position exacte » dans les réglages de ton appareil.</small></span></div>
                 <p className="precision-note">La précision affichée dépend du GPS et de ton environnement.</p>
                 <button className="button button-exit button-wide" disabled={busy} onClick={() => void handleExit()}><LogOut size={16} />{room.owner_id === userId ? 'Fermer la chasse' : 'Quitter la chasse'}</button>
               </div>
             </div>
-          </aside>
+          </aside>        </>} dialogs={<>
+
           {gpsConsentOpen && <div className="gps-consent-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setGpsConsentOpen(false); gpsConsentTrigger.current?.focus(); } }}>
             <section ref={gpsConsentDialog} className="gps-consent-dialog" role="dialog" aria-modal="true" aria-labelledby="gps-consent-title">
               <div className="gps-consent-heading"><span className="lobby-kicker">BALISE DE L’ESCOUADE</span><button className="icon-button" onClick={() => { setGpsConsentOpen(false); gpsConsentTrigger.current?.focus(); }} aria-label="Fermer"><X size={17} /></button></div>
@@ -729,14 +694,9 @@ export default function Home() {
               <div className="gps-consent-actions"><button ref={gpsConsentConfirm} className="button button-primary" onClick={() => { setGpsConsentOpen(false); void gps.start(); }}>Continuer vers l’autorisation</button><button className="button button-ghost" onClick={() => { setGpsConsentOpen(false); gpsConsentTrigger.current?.focus(); }}>Pas maintenant</button></div>
             </section>
           </div>}
-          {ideasOpen && <div className="ideas-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setIdeasOpen(false); ideasTrigger.current?.focus(); } }}>
-            <section ref={ideasDialog} className="ideas-dialog" role="dialog" aria-modal="true" aria-labelledby="mode-ideas-title">
-              <div className="ideas-dialog-heading"><span>HUNT · CARNET DE TERRAIN</span><button ref={ideasClose} className="icon-button" onClick={() => { setIdeasOpen(false); ideasTrigger.current?.focus(); }} aria-label="Fermer le carnet"><X size={18} /></button></div>
-              <GameModeIdeas />
-            </section>
-          </div>}
-        </section>
+        </>} />
       )}
+      {!room && <InstallPrompt />}
     </main>
   );
 }

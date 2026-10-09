@@ -1,6 +1,6 @@
 # HUNT — Jeu de poursuite GPS en plein air
 
-Application web mobile avec coque Capacitor pour organiser des parties en extérieur. La version actuelle propose des lobbies privés, des invitations par code ou lien et une carte des positions récentes des participants.
+Application web mobile avec coque Capacitor pour organiser des parties en extérieur. Interface mobile et PWA installable : salons privés, terrain partagé et mode La Piste pour 4 à 10 joueurs.
 
 ## Fonctionnalités
 
@@ -16,7 +16,7 @@ Next.js 15 · React 19 · TypeScript · Supabase (PostgreSQL, authentification e
 
 ## État du projet
 
-Le mode de poursuite principal, **La Piste**, est en développement. La direction produit et le périmètre à livrer sont décrits dans [`docs/product-direction.md`](docs/product-direction.md).
+**La Piste** est implémenté et testé localement, avec une migration serveur obligatoire avant activation sur une base existante. Le parcours complet à quatre navigateurs utilise les véritables fonctions PostgreSQL. Les essais sur téléphones physiques restent à effectuer. La direction produit et le périmètre à livrer sont décrits dans [`docs/product-direction.md`](docs/product-direction.md).
 
 Le suivi natif en arrière-plan, les Live Activities iOS et les Live Updates Android ne sont pas validés comme fonctionnalités complètes. Garder l’application ouverte pour le partage de position. Une zone GPS ne garantit pas la sécurité des déplacements.
 
@@ -110,3 +110,28 @@ Release-Note: Les statuts distinguent une position dans la zone, hors de la zone
 ```
 
 Les notes sont intégrées au build Vercel. Elles expliquent ce qui a changé, mais le statut réel de mise en ligne doit toujours être confirmé avec le déploiement et l’URL publique.
+
+
+## La Piste et installation PWA
+
+La cible accepte son rôle au briefing. Chaque joueur confirme sa préparation et un GPS récent (45 s maximum, précision 30 m maximum). La cible bénéficie de 30 s d’avance dans une manche de 15 min. Les chasseurs reçoivent un indice par maille de 200 m, élargi à la précision du signal, toutes les 90 s après l’avance. L’interception demande confirmation de la cible sous 30 s. Après 10 min, deux mesures précises espacées d’au moins 5 s dans le cercle d’extraction de 50 m permettent la sortie. Le premier résultat valide est verrouillé côté serveur.
+
+L’hôte choisit explicitement le centre du terrain comme extraction. Une modification de l’escouade annule la manche ; la suivante exige de nouveaux consentements. Les positions précises passent par `publish_location`, jamais par un accès direct à la table de match. Les anciens clients ne peuvent plus écrire de positions publiques après création d’une manche. La cible voit uniquement son propre GPS ; les chasseurs voient les autres chasseurs. Les données GPS sont effacées à la fin, à l’arrêt du partage ou à la fermeture du salon. Le jeu n’utilise aucun fournisseur IA.
+
+Sur une base existante, appliquer `supabase/migrations/20261009210000_la_piste.sql` dans une transaction **avant** de publier cette interface. Sur une base neuve, utiliser le schéma complet une seule fois. Le test `tests/match-server.test.cjs` exécute réellement PostgreSQL via PGlite ; il ne remplace pas la validation des transports Auth/Realtime de Supabase déployé.
+
+Ouvrir « Installer HUNT » pour les instructions adaptées au navigateur. Le bouton d’installation apparaît seulement si le navigateur propose cette action. Une fois chargée en ligne, l’app conserve son interface hors ligne ; rejoindre, partager et jouer exigent une connexion. Une mise à jour attend le choix du joueur et la fin des manches dans tous les onglets ouverts.
+
+## Vérifier la refonte
+
+```bash
+npm ci
+npm test
+npm run typecheck
+npx playwright install chromium
+npm run test:e2e
+npm run build
+npx playwright test --config playwright.production.config.ts
+```
+
+`node scripts/serve-preview.cjs` sert l’export de production sur `http://127.0.0.1:4180`. Les captures de référence sont dans `docs/validation/2026-10-09/`. Aucun téléphone physique, réseau terrain ou déploiement de la migration n’est présumé validé par ces tests locaux.
