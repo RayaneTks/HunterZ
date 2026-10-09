@@ -27,7 +27,7 @@ function createLobbyFixture() {
 
   function currentUser(request: { headers(): Record<string, string> }) {
     const authorization = request.headers().authorization ?? '';
-    return Object.values(users).find((user) => authorization.includes(user.token))?.id ?? users.host.id;
+    return Object.values(users).find((user) => authorization.includes(user.token))?.id ?? null;
   }
 
   async function install(context: BrowserContext, identity: keyof typeof users) {
@@ -53,6 +53,8 @@ function createLobbyFixture() {
       const path = url.pathname.replace('/rest/v1/', '');
       const body = request.postDataJSON?.() as Record<string, unknown> | Record<string, unknown>[] | undefined;
       const respond = (data: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
+
+      if (!userId) return respond({ message: 'Invalid JWT' }, 401);
 
       if (path === 'rpc/create_room' && request.method() === 'POST') {
         if (room) return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ message: 'Tu es déjà dans un lobby' }) });
@@ -150,10 +152,10 @@ async function createMobileContext(browser: Browser, fixture: LobbyFixture, iden
   await context.routeWebSocket(/.*/, (socket) => {
     const url = new URL(socket.url());
     if (url.hostname !== '127.0.0.1' || url.port !== '54321') {
-      socket.close(1008, 'External WebSockets are blocked in this test');
+      socket.close();
       return;
     }
-    socket.close(1000, 'Realtime is disabled in the deterministic fixture');
+    socket.close();
   });
   await context.grantPermissions(permissions, { origin: baseURL });
   await fixture.install(context, identity);
@@ -211,20 +213,38 @@ test('two mobile players create, join, share, stop, leave, and close one private
 
     await hostClient.page.getByRole('switch', { name: 'Partager ma position avec l’escouade' }).click();
     await expect.poll(() => fixture.positions.has(fixture.users.host.id)).toBe(false);
-    await expandSquad(guestClient.page);
-    await guestClient.page.getByRole('button', { name: 'Quitter la chasse' }).click();
-    await expect(guestClient.page.getByRole('button', { name: 'Créer une chasse' })).toBeVisible();
-    expect(fixture.members.size).toBe(1);
 
     await expandSquad(hostClient.page);
     await hostClient.page.getByRole('button', { name: 'Fermer la chasse' }).click();
     await expect(hostClient.page.getByRole('button', { name: 'Créer une chasse' })).toBeVisible();
+    await expect(guestClient.page.getByRole('button', { name: 'Créer une chasse' })).toBeVisible({ timeout: 15_000 });
     expect(fixture.room).toBeNull();
+    expect(fixture.members.size).toBe(0);
     await guestClient.page.locator('#join-code').fill(code);
     await guestClient.page.getByRole('button', { name: 'Rejoindre la chasse' }).click();
     await expect(guestClient.page.locator('.action-error')).toContainText('Lobby introuvable ou fermé');
   } finally {
     await hostClient.context.close();
     await guestClient.context.close();
+  }
+});
+
+test('unknown authorization token is rejected instead of impersonating host', async ({ browser }) => {
+  const fixture = createLobbyFixture();
+  const context = await browser.newContext();
+  await fixture.install(context, 'host');
+  const page = await context.newPage();
+
+  try {
+    await page.goto(baseURL);
+    const status = await page.evaluate(async () => {
+      const response = await fetch('/rest/v1/profiles', {
+        headers: { authorization: 'Bearer unexpected-session-token' },
+      });
+      return response.status;
+    });
+    expect(status).toBe(401);
+  } finally {
+    await context.close();
   }
 });

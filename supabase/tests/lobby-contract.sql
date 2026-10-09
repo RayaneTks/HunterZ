@@ -246,7 +246,35 @@ begin
 end;
 $$;
 
--- 4. Outsider must not see positions from another room.
+-- 4. Profile visibility is limited to self and members of the same active room.
+select pg_temp.hunt_contract_set_identity('d7197a3a-0d0a-4dc0-9dc2-000000000003');
+do $$
+declare
+  v_own_profiles bigint;
+  v_squad_profiles bigint;
+  v_outside_profiles bigint;
+begin
+  begin
+    select count(*) into v_own_profiles from public.profiles where id = auth.uid();
+    select count(*) into v_squad_profiles from public.profiles
+      where id = 'd7197a3a-0d0a-4dc0-9dc2-000000000005'::uuid;
+    select count(*) into v_outside_profiles from public.profiles
+      where id in (
+        'd7197a3a-0d0a-4dc0-9dc2-000000000001'::uuid,
+        'd7197a3a-0d0a-4dc0-9dc2-000000000004'::uuid
+      );
+    if v_own_profiles <> 1 or v_squad_profiles <> 1 or v_outside_profiles <> 0 then
+      raise exception 'unexpected profile visibility: own %, squad %, outside %',
+        v_own_profiles, v_squad_profiles, v_outside_profiles;
+    end if;
+    insert into pg_temp.hunt_contract_results values ('profile_reads_limited_to_self_and_squad', true, 'self and squad visible; non-member profiles hidden');
+  exception when others then
+    insert into pg_temp.hunt_contract_results values ('profile_reads_limited_to_self_and_squad', false, sqlerrm);
+  end;
+end;
+$$;
+
+-- 5. Outsider must not see positions from another room.
 select pg_temp.hunt_contract_set_identity('d7197a3a-0d0a-4dc0-9dc2-000000000004');
 do $$
 declare
@@ -278,8 +306,8 @@ begin
   if v_failures is not null then
     raise exception 'Hunt lobby contract failures: %', v_failures;
   end if;
-  if (select count(*) from pg_temp.hunt_contract_results) <> 4 then
-    raise exception 'Expected four contract assertions';
+  if (select count(*) from pg_temp.hunt_contract_results) <> 5 then
+    raise exception 'Expected five contract assertions';
   end if;
 end;
 $$;

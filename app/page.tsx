@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { ArrowRight, Check, ChevronDown, CircleAlert, Copy, Crosshair, LogOut, Radio, ShieldCheck, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGeolocation } from '../hooks/use-geolocation';
 import InstallPrompt from '../components/InstallPrompt';
 import { closeRoom, createRoom, ensureAnonymousSession, getProfile, getRoom, joinRoom, leaveRoom, loadLobby, saveProfile } from '../lib/hunt';
@@ -117,6 +117,8 @@ export default function Home() {
   const [squadExpanded, setSquadExpanded] = useState(false);
   const [desktopLobby, setDesktopLobby] = useState(false);
   const [freshnessNow, setFreshnessNow] = useState(() => Date.now());
+  const activeRoomRef = useRef<Room | null>(null);
+  activeRoomRef.current = room;
 
   useEffect(() => {
     setFreshnessNow(Date.now());
@@ -185,13 +187,23 @@ export default function Home() {
     if (!room) return;
     try {
       setSyncing(true);
-      setSnapshot(await loadLobby(room));
+      const nextSnapshot = await loadLobby(room);
+      if (activeRoomRef.current?.id !== room.id) return;
+      if (!nextSnapshot.members.some((member) => member.user_id === userId)) {
+        await gps.stop();
+        clearActiveRoom(activeRoomStorage());
+        setRoom(null);
+        setSnapshot({ members: [], locations: [] });
+        clearError();
+        return;
+      }
+      setSnapshot(nextSnapshot);
     } catch (loadError) {
       showError(messageFromError(loadError));
     } finally {
       setSyncing(false);
     }
-  }, [room]);
+  }, [room, userId, gps.stop]);
 
   useEffect(() => {
     if (!room || !supabase) return;
