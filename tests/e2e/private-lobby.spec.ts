@@ -137,7 +137,7 @@ async function enterWithNickname(page: Page, nickname: string) {
   await page.goto(baseURL);
   await page.getByLabel('Ton pseudo').fill(nickname);
   await page.getByRole('button', { name: 'Entrer dans HUNT' }).click();
-  await expect(page.getByRole('heading', { name: /Choisis/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Monte ton escouade/ })).toBeVisible();
 }
 
 async function expandSquad(page: Page) {
@@ -177,7 +177,7 @@ test('two mobile players create, join, share, stop, leave, and close one private
 
   try {
     await enterWithNickname(hostClient.page, names.host);
-    await hostClient.page.getByRole('button', { name: 'Créer une chasse' }).click();
+    await hostClient.page.getByRole('button', { name: 'Créer un salon' }).click();
     const code = await hostClient.page.locator('.room-identity h1').innerText();
     expect(code).toBe('HUNT01');
     await expect(hostClient.page.getByRole('complementary', { name: 'Escouade' }).getByText(names.host)).toBeVisible();
@@ -237,8 +237,8 @@ test('two mobile players create, join, share, stop, leave, and close one private
 
     await expandSquad(hostClient.page);
     await hostClient.page.getByRole('button', { name: 'Fermer la chasse' }).click();
-    await expect(hostClient.page.getByRole('button', { name: 'Créer une chasse' })).toBeVisible();
-    await expect(guestClient.page.getByRole('button', { name: 'Créer une chasse' })).toBeVisible({ timeout: 15_000 });
+    await expect(hostClient.page.getByRole('button', { name: 'Créer un salon' })).toBeVisible();
+    await expect(guestClient.page.getByRole('button', { name: 'Créer un salon' })).toBeVisible({ timeout: 15_000 });
     expect(fixture.room).toBeNull();
     expect(fixture.members.size).toBe(0);
     await guestClient.page.locator('#join-code').fill(code);

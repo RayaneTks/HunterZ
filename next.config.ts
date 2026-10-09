@@ -3,42 +3,39 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-type ReleaseEntry = { id: string; title: string; date: string };
 type ReleaseInfo = {
   deploymentId: string;
-  commit: string;
-  title: string;
+  releaseTitle: string;
+  notes: string[];
   builtAt: string;
   target: string;
   url: string | null;
   isVercelDeployment: boolean;
-  history: ReleaseEntry[];
 };
 
-let history: ReleaseEntry[] = [];
+let commitMessage = '';
 try {
-  const log = execFileSync('git', ['log', '-10', '--format=%H%x1f%s%x1f%cI'], { encoding: 'utf8' });
-  history = log.split('\n').filter(Boolean).map((line) => {
-    const [id, title, date] = line.split('\x1f');
-    return { id, title, date };
-  });
+  commitMessage = execFileSync('git', ['show', '-s', '--format=%B', 'HEAD'], { encoding: 'utf8' });
 } catch {
-  // The build can still publish a single release when a Git checkout is unavailable.
+  // Local builds can still run without a Git checkout.
 }
 
-const commit = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? history[0]?.id ?? 'local';
-const commitTitle = process.env.VERCEL_GIT_COMMIT_MESSAGE ?? history.find((entry) => entry.id === commit)?.title ?? 'Mise à jour de HUNT';
+const declaredReleaseTitle = commitMessage.match(/^Release-Title:\s*(.+)$/m)?.[1]?.trim();
+const notes = [...commitMessage.matchAll(/^Release-Note:\s*(.+)$/gm)].map((match) => match[1].trim());
+if (process.env.VERCEL_ENV === 'production' && (!declaredReleaseTitle || notes.length === 0)) {
+  throw new Error('Les builds Production doivent contenir Release-Title et au moins une Release-Note destinés aux joueurs.');
+}
+const releaseTitle = declaredReleaseTitle ?? 'HUNT a reçu une mise à jour';
 const builtAt = new Date().toISOString();
 const deploymentUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null;
 const releaseInfo: ReleaseInfo = {
-  deploymentId: process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_URL ?? commit,
-  commit,
-  title: commitTitle.split('\n')[0].trim(),
+  deploymentId: process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_URL ?? process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? 'local',
+  releaseTitle,
+  notes: notes.length ? notes : ['Cette mise à jour apporte des améliorations et corrections à HUNT.'],
   builtAt,
   target: process.env.VERCEL_ENV ?? 'local',
   url: deploymentUrl,
   isVercelDeployment: process.env.VERCEL === '1',
-  history: history.length ? history : [{ id: commit, title: commitTitle.split('\n')[0].trim(), date: builtAt }],
 };
 
 writeFileSync(join(process.cwd(), 'public', 'release.json'), JSON.stringify(releaseInfo));

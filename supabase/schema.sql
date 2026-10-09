@@ -13,7 +13,14 @@ create table if not exists public.rooms (
   id uuid primary key default gen_random_uuid(),
   code text unique not null check (code ~ '^[A-Z0-9]{6}$'),
   owner_id uuid not null references auth.users(id),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  zone_center_lat double precision check (zone_center_lat is null or zone_center_lat between -90 and 90),
+  zone_center_lng double precision check (zone_center_lng is null or zone_center_lng between -180 and 180),
+  zone_radius_m integer check (zone_radius_m is null or zone_radius_m in (250, 500, 800, 1200)),
+  check (
+    (zone_center_lat is null and zone_center_lng is null and zone_radius_m is null)
+    or (zone_center_lat is not null and zone_center_lng is not null and zone_radius_m is not null)
+  )
 );
 
 create table if not exists public.room_members (
@@ -210,16 +217,53 @@ begin
 end;
 $$;
 
+create or replace function public.set_hunt_zone(
+  p_room_id uuid,
+  p_center_lat double precision default null,
+  p_center_lng double precision default null,
+  p_radius_m integer default null
+)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  current_user_id uuid := (select auth.uid());
+begin
+  if current_user_id is null then raise exception 'Authentication required' using errcode = '28000'; end if;
+  if p_room_id is null then raise exception 'A lobby is required' using errcode = '22023'; end if;
+  if not exists (
+    select 1 from public.rooms as room
+    join public.room_members as member on member.room_id = room.id
+    where room.id = p_room_id and room.owner_id = current_user_id and member.user_id = current_user_id
+  ) then
+    raise exception 'Seul l’hôte peut définir le terrain' using errcode = '42501';
+  end if;
+  if p_center_lat is null and p_center_lng is null and p_radius_m is null then
+    update public.rooms set zone_center_lat = null, zone_center_lng = null, zone_radius_m = null where id = p_room_id;
+    return;
+  end if;
+  if p_center_lat is null or p_center_lng is null or p_radius_m is null
+     or p_center_lat < -90 or p_center_lat > 90
+     or p_center_lng < -180 or p_center_lng > 180
+     or p_radius_m not in (250, 500, 800, 1200) then
+    raise exception 'Terrain invalide' using errcode = '22023';
+  end if;
+  update public.rooms
+  set zone_center_lat = p_center_lat, zone_center_lng = p_center_lng, zone_radius_m = p_radius_m
+  where id = p_room_id;
+end;
+$$;
+
 revoke all on function public.create_room() from public;
 revoke all on function public.join_room(text) from public;
 revoke all on function public.stop_sharing(uuid) from public;
 revoke all on function public.leave_room(uuid) from public;
 revoke all on function public.close_room(uuid) from public;
+revoke all on function public.set_hunt_zone(uuid, double precision, double precision, integer) from public;
 grant execute on function public.create_room() to authenticated;
 grant execute on function public.join_room(text) to authenticated;
 grant execute on function public.stop_sharing(uuid) to authenticated;
 grant execute on function public.leave_room(uuid) to authenticated;
 grant execute on function public.close_room(uuid) to authenticated;
+grant execute on function public.set_hunt_zone(uuid, double precision, double precision, integer) to authenticated;
 
 do $$ begin
   alter publication supabase_realtime add table public.room_members;
@@ -227,5 +271,9 @@ exception when duplicate_object then null;
 end $$;
 do $$ begin
   alter publication supabase_realtime add table public.positions;
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.rooms;
 exception when duplicate_object then null;
 end $$;

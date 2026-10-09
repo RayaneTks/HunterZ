@@ -41,9 +41,24 @@ export async function saveProfile(userId: string, nickname: string) {
 
 export async function getRoom(roomId: string) {
   const client = requireClient();
-  const { data, error } = await client.from('rooms').select('id,code,owner_id').eq('id', roomId).maybeSingle();
+  const { data, error } = await client.from('rooms').select('id,code,owner_id,zone_center_lat,zone_center_lng,zone_radius_m').eq('id', roomId).maybeSingle();
+  if (!error) return data ? { ...data, zone_available: true } as Room : null;
+  if (error.code !== '42703' && error.code !== 'PGRST204') throw error;
+  const { data: legacyData, error: legacyError } = await client.from('rooms').select('id,code,owner_id').eq('id', roomId).maybeSingle();
+  if (legacyError) throw legacyError;
+  return legacyData ? { ...legacyData, zone_available: false } as Room : null;
+}
+
+export async function saveHuntZone(roomId: string, center: { latitude: number; longitude: number } | null, radiusMeters: number | null) {
+  const client = requireClient();
+  const { error } = await client.rpc('set_hunt_zone', {
+    p_room_id: roomId,
+    p_center_lat: center?.latitude ?? null,
+    p_center_lng: center?.longitude ?? null,
+    p_radius_m: radiusMeters,
+  });
   if (error) throw error;
-  return data as Room | null;
+  return getRoom(roomId);
 }
 
 export async function createRoom() {
@@ -52,7 +67,12 @@ export async function createRoom() {
   if (error) throw error;
   const created = Array.isArray(data) ? data[0] : data;
   if (!created?.room_id || !created?.room_code) throw new Error('Le lobby n’a pas pu être créé.');
-  return { id: created.room_id, code: created.room_code };
+  try {
+    return await getRoom(created.room_id) ?? { id: created.room_id, code: created.room_code, owner_id: null, zone_available: false };
+  } catch {
+    // Room creation is already committed by the server; metadata can be retried from the lobby.
+    return { id: created.room_id, code: created.room_code, owner_id: null, zone_available: false };
+  }
 }
 
 export async function joinRoom(code: string) {

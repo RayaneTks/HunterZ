@@ -66,4 +66,16 @@ La localisation web demande l’autorisation du navigateur et dépend des capaci
 
 ## Déploiement Vercel
 
-Importer le dossier dans Vercel, conserver `npm run build`, puis ajouter `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY` dans les environnements Preview et Production. Les pushes sur `main` sont configurés pour lancer le build CI; Vercel doit publier depuis `main`. Après chaque changement de schéma, appliquer la migration SQL au bon projet Supabase puis vérifier le déploiement et tester deux appareils. L’avis Notes de version dans HUNT exige une vérification du cache Vercel et doit être considéré comme une information intégrée au build, pas comme une preuve serveur indépendante que le site est actuellement disponible.
+Importer le dossier dans Vercel, conserver `npm run build`, puis ajouter `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY` dans les environnements Preview et Production. Les pushes sur `main` lancent la CI; Vercel doit publier depuis `main`. Après chaque changement de schéma, appliquer la migration SQL au bon projet Supabase puis vérifier le déploiement et tester deux appareils.
+
+Chaque commit publié sur `main` doit inclure dans son corps un titre et au moins une note destinés aux joueurs. La CI vérifie leur présence; l’application affiche uniquement le titre et les changements concrets, jamais le SHA ou le sujet technique du commit. Exemple :
+
+```text
+feat: prepare shared outdoor play area
+
+Release-Title: Préparez votre terrain de chasse
+Release-Note: L’hôte peut tracer un périmètre commun et choisir son rayon directement depuis la carte.
+Release-Note: Les statuts distinguent une position dans la zone, hors de la zone et trop imprécise pour conclure.
+```
+
+Les notes sont intégrées au build Vercel. Elles expliquent ce qui a changé, mais le statut réel de mise en ligne doit toujours être confirmé avec le déploiement et l’URL publique.

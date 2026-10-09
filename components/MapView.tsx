@@ -2,10 +2,38 @@
 
 import { useEffect, useRef } from 'react';
 import * as maplibregl from 'maplibre-gl';
-import { type Map as MapInstance, type Marker } from 'maplibre-gl';
-import type { PlayerLocation } from '../lib/types';
+import { type GeoJSONSource, type Map as MapInstance, type Marker } from 'maplibre-gl';
+import type { HuntZone, PlayerLocation } from '../lib/types';
 
 type PlayerMarker = { marker: Marker; player: PlayerLocation };
+
+function circleFeature(zone: HuntZone | null): GeoJSON.FeatureCollection {
+  if (!zone) return { type: 'FeatureCollection', features: [] };
+  const earthRadius = 6_371_008.8;
+  const angularRadius = zone.radiusMeters / earthRadius;
+  const centerLatitude = zone.latitude * Math.PI / 180;
+  const centerLongitude = zone.longitude * Math.PI / 180;
+  const coordinates: [number, number][] = [];
+  for (let index = 0; index <= 64; index += 1) {
+    const bearing = index / 64 * Math.PI * 2;
+    const latitude = Math.asin(
+      Math.sin(centerLatitude) * Math.cos(angularRadius)
+      + Math.cos(centerLatitude) * Math.sin(angularRadius) * Math.cos(bearing),
+    );
+    const longitude = centerLongitude + Math.atan2(
+      Math.sin(bearing) * Math.sin(angularRadius) * Math.cos(centerLatitude),
+      Math.cos(angularRadius) - Math.sin(centerLatitude) * Math.sin(latitude),
+    );
+    coordinates.push([longitude * 180 / Math.PI, latitude * 180 / Math.PI]);
+  }
+  return {
+    type: 'FeatureCollection',
+    features: [
+      { type: 'Feature', properties: { kind: 'boundary' }, geometry: { type: 'Polygon', coordinates: [coordinates] } },
+      { type: 'Feature', properties: { kind: 'center' }, geometry: { type: 'Point', coordinates: [zone.longitude, zone.latitude] } },
+    ],
+  };
+}
 
 function formatSignalAge(updatedAt: string) {
   const timestamp = Date.parse(updatedAt);
@@ -24,7 +52,7 @@ function resizeAccuracyRing(record: PlayerMarker, zoom: number) {
   ring.style.height = ring.style.width;
 }
 
-export default function MapView({ locations, me, recenterSignal, focusedPlayerId, onSelectPlayer }: { locations: PlayerLocation[]; me: string; recenterSignal: number; focusedPlayerId: string | null; onSelectPlayer: (playerId: string) => void }) {
+export default function MapView({ locations, me, recenterSignal, focusedPlayerId, onSelectPlayer, zone = null, onMapTap }: { locations: PlayerLocation[]; me: string; recenterSignal: number; focusedPlayerId: string | null; onSelectPlayer: (playerId: string) => void; zone?: HuntZone | null; onMapTap?: (center: { latitude: number; longitude: number }) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapInstance | null>(null);
   const markers = useRef(new Map<string, PlayerMarker>());
@@ -34,6 +62,11 @@ export default function MapView({ locations, me, recenterSignal, focusedPlayerId
   const reduceMotion = useRef(false);
   const selectPlayerRef = useRef(onSelectPlayer);
   selectPlayerRef.current = onSelectPlayer;
+  const onMapTapRef = useRef(onMapTap);
+  onMapTapRef.current = onMapTap;
+  const zoneRef = useRef(zone);
+  zoneRef.current = zone;
+  const fittedZoneRef = useRef('');
 
   useEffect(() => {
     if (!container.current || map.current) return;
@@ -50,6 +83,32 @@ export default function MapView({ locations, me, recenterSignal, focusedPlayerId
       touchPitch: false,
     });
     map.current = instance;
+    instance.on('click', (event) => onMapTapRef.current?.({ latitude: event.lngLat.lat, longitude: event.lngLat.lng }));
+    instance.on('load', () => {
+      instance.addSource('hunt-zone', { type: 'geojson', data: circleFeature(zoneRef.current) });
+      instance.addLayer({
+        id: 'hunt-zone-fill', type: 'fill', source: 'hunt-zone', filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: { 'fill-color': '#f05a50', 'fill-opacity': 0.08 },
+      });
+      instance.addLayer({
+        id: 'hunt-zone-outline', type: 'line', source: 'hunt-zone', filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: { 'line-color': '#f05a50', 'line-width': 3, 'line-opacity': 0.9, 'line-dasharray': [2, 1.3] },
+      });
+      instance.addLayer({
+        id: 'hunt-zone-center', type: 'circle', source: 'hunt-zone', filter: ['==', ['geometry-type'], 'Point'],
+        paint: { 'circle-radius': 6, 'circle-color': '#f05a50', 'circle-stroke-color': '#f3efe6', 'circle-stroke-width': 2 },
+      });
+      const initialZone = zoneRef.current;
+      if (initialZone) {
+        const latitudeDelta = initialZone.radiusMeters / 111_000;
+        const longitudeDelta = initialZone.radiusMeters / (111_000 * Math.max(0.2, Math.cos(initialZone.latitude * Math.PI / 180)));
+        instance.fitBounds(
+          [[initialZone.longitude - longitudeDelta, initialZone.latitude - latitudeDelta], [initialZone.longitude + longitudeDelta, initialZone.latitude + latitudeDelta]],
+          { padding: instance.getPadding(), maxZoom: 15, duration: reduceMotion.current ? 0 : 500 },
+        );
+        fittedZoneRef.current = `${initialZone.latitude}:${initialZone.longitude}:${initialZone.radiusMeters}`;
+      }
+    });
     const mapContainer = container.current;
     const sheet = mapContainer.closest('.lobby-view')?.querySelector('.squad-sheet');
     const resize = () => {
@@ -78,6 +137,26 @@ export default function MapView({ locations, me, recenterSignal, focusedPlayerId
       map.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const currentMap = map.current;
+    if (!currentMap || !currentMap.isStyleLoaded()) return;
+    const source = currentMap.getSource('hunt-zone') as GeoJSONSource | undefined;
+    source?.setData(circleFeature(zone));
+    if (!zone) {
+      fittedZoneRef.current = '';
+      return;
+    }
+    const signature = `${zone.latitude}:${zone.longitude}:${zone.radiusMeters}`;
+    if (signature === fittedZoneRef.current) return;
+    fittedZoneRef.current = signature;
+    const latitudeDelta = zone.radiusMeters / 111_000;
+    const longitudeDelta = zone.radiusMeters / (111_000 * Math.max(0.2, Math.cos(zone.latitude * Math.PI / 180)));
+    currentMap.fitBounds(
+      [[zone.longitude - longitudeDelta, zone.latitude - latitudeDelta], [zone.longitude + longitudeDelta, zone.latitude + latitudeDelta]],
+      { padding: currentMap.getPadding(), maxZoom: 15, duration: reduceMotion.current ? 0 : 500 },
+    );
+  }, [zone]);
 
   useEffect(() => {
     const currentMap = map.current;
@@ -156,5 +235,5 @@ export default function MapView({ locations, me, recenterSignal, focusedPlayerId
     currentMap.flyTo({ center: [player.longitude, player.latitude], zoom: Math.max(currentMap.getZoom(), 16), duration: reduceMotion.current ? 0 : 500 });
   }, [focusedPlayerId, locations]);
 
-  return <div ref={container} className="map" aria-label="Carte des joueurs du lobby" />;
+  return <div ref={container} className="map" aria-label={onMapTap ? 'Carte interactive : touche un point pour placer le centre du terrain' : 'Carte des joueurs et du terrain du lobby'} />;
 }

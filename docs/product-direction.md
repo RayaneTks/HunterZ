@@ -36,6 +36,10 @@ Carnet de terrain urbain et cartographie de poursuite : interface sombre et lisi
 
 Commencer par célébrer une partie partagée : récap privé, progression d’escouade et petits éléments cosmétiques attribués à la coopération et à la participation. Missions hebdomadaires facultatives ensuite. Pas de séries quotidiennes, bonus de connexion, pénalité d’absence, classement public de position ou historique de trajet. La revanche et l’invitation de ses amis sont les principaux appels à revenir.
 
+Le lobby présente aussi un carnet consultable de concepts — **La Piste**, **Cibles secrètes**, **Butin de terrain**, **Balises**, **Éclaireurs**. Choisir une fiche ne configure ni ne lance une partie : cela permet à l’escouade de discuter des idées. **Butin de terrain** explore notamment une boucle d’exploration cartographique avec caches virtuelles, ressources et capacités à concevoir; les récompenses et affrontements restent ouverts. Ce sont des hypothèses de brainstorming, pas des modes livrés.
+
+Le premier réglage partagé de terrain propose des rayons de 250, 500, 800 et 1 200 m. Ils aident à cadrer une zone sur la carte; les équipes devront encore les essayer en ville et en espace ouvert avant de fixer des recommandations.
+
 ## Architecture et blocs indépendants
 
 Les responsabilités devront évoluer progressivement vers des modules : lobby/invitations, match et machine d’états, périmètre/GPS, modes et objectifs, récap/progression, adaptateurs iOS/Android, service de release. Le serveur fait autorité sur les membres et transitions de partie; les capacités de l’appareil sont isolées derrière des adaptateurs. Aucune position reçue n’est traitée comme fraîche si elle est ancienne ou trop imprécise.

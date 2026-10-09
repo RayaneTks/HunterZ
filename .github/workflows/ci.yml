@@ -25,6 +25,18 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Require player-readable release notes on main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          message="$(git show -s --format=%B HEAD)"
+          if ! grep -q '^Release-Title: .\+' <<< "$message"; then
+            echo 'Add a Release-Title trailer with a player-friendly title.' >&2
+            exit 1
+          fi
+          if ! grep -q '^Release-Note: .\+' <<< "$message"; then
+            echo 'Add at least one Release-Note trailer describing a concrete change for players.' >&2
+            exit 1
+          fi
       - run: npm ci
       - run: npm test
       - run: npm run typecheck

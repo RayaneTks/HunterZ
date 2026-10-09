@@ -3,16 +3,14 @@
 import { Check, RefreshCw, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-type ReleaseEntry = { id: string; title: string; date: string };
 type ReleaseInfo = {
   deploymentId: string;
-  commit: string;
-  title: string;
+  releaseTitle: string;
+  notes: string[];
   builtAt: string;
   target: string;
   url: string | null;
   isVercelDeployment: boolean;
-  history: ReleaseEntry[];
 };
 
 function readBuildRelease(): ReleaseInfo | null {
@@ -92,24 +90,25 @@ export default function ReleaseNotes() {
   }
 
   const formattedDate = new Date(release.builtAt).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
-  const shortCommit = release.commit.slice(0, 7);
+  const releaseDate = new Date(release.builtAt).toLocaleDateString('fr-FR', { dateStyle: 'long' });
   return (
     <>
       <aside className="release-notice" aria-live="polite">
         <span className="release-check"><Check size={15} /></span>
-        <span className="release-notice-copy"><strong>{needsReload ? 'Version plus récente disponible' : 'Version du build affichée'}</strong><small>{release.title}</small></span>
-        <button ref={trigger} className="release-open button button-small" onClick={() => setOpen(true)}>{needsReload ? 'Actualiser' : 'Nouveautés'}</button>
+        <span className="release-notice-copy"><strong>{needsReload ? 'Une mise à jour est prête' : 'Quoi de neuf dans HUNT ?'}</strong><small>{release.releaseTitle}</small></span>
+        <button ref={trigger} className="release-open button button-small" onClick={() => setOpen(true)}>{needsReload ? 'Actualiser' : 'Découvrir'}</button>
         <button className="icon-button release-dismiss" onClick={dismiss} aria-label="Fermer l’avis de version"><X size={16} /></button>
       </aside>
       {open && <div className="release-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setOpen(false); trigger.current?.focus(); } }}>
         <section className="release-dialog" role="dialog" aria-modal="true" aria-labelledby="release-title">
           <div className="release-dialog-heading"><span className="release-check"><Check size={17} /></span><button ref={closeButton} className="icon-button" onClick={() => { setOpen(false); trigger.current?.focus(); }} aria-label="Fermer"><X size={17} /></button></div>
-          <p className="eyebrow">HUNT · NOTES DE VERSION</p>
-          <h2 id="release-title">{needsReload ? 'Une nouvelle version est disponible.' : 'Version chargée dans HUNT.'}</h2>
-          <p className="release-deploy-status">{needsReload ? 'Le point de vérification des versions Vercel indique un build plus récent.' : `Build Vercel · ${release.target} · ${formattedDate}`}</p>
-          <div className="release-current"><strong>{release.title}</strong><small>Commit {shortCommit} · {formattedDate}</small></div>
-          <ul className="release-history" aria-label="Historique récent">
-            {release.history.slice(0, 8).map((entry) => <li key={entry.id}><span className="rec-dot" /><span>{entry.title}</span><small>{entry.id.slice(0, 7)}</small></li>)}
+          <p className="eyebrow">HUNT · NOUVEAUTÉS</p>
+          <h2 id="release-title">{needsReload ? 'Une mise à jour est prête.' : 'Voici ce qui a changé.'}</h2>
+          <p className="release-deploy-status">{needsReload ? 'Les nouveautés sont prêtes. Actualise HUNT pour les découvrir.' : `Build généré le ${releaseDate}.`}</p>
+          <div className="release-current"><strong>{release.releaseTitle}</strong><ul className="release-notes" aria-label="Changements apportés">{release.notes.map((note, index) => <li key={`${index}-${note}`}>{note}</li>)}</ul></div>
+          <p className="release-status-footnote">{needsReload ? 'Cette mise à jour est prête à être chargée.' : release.target === 'production' ? 'Tu utilises la version actuellement en ligne.' : 'Tu consultes une version de préproduction.'}</p>
+          <ul className="release-history" aria-label="Détails de publication">
+            <li><span className="rec-dot" /><span>{release.target === 'production' ? 'Version en ligne' : `Version ${release.target}`}</span><small>{formattedDate}</small></li>
           </ul>
           <div className="release-dialog-actions">
             {needsReload && <button className="button button-primary" onClick={() => window.location.reload()}><RefreshCw size={15} /> Recharger HUNT</button>}

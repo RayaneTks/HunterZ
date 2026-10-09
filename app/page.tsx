@@ -2,15 +2,17 @@
 
 import dynamic from 'next/dynamic';
 import { Capacitor } from '@capacitor/core';
-import { ArrowRight, Check, ChevronDown, CircleAlert, Copy, Crosshair, LogOut, Radio, Share2, ShieldCheck, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, CircleAlert, Copy, Crosshair, LogOut, MapPin, Radio, Share2, ShieldCheck, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGeolocation } from '../hooks/use-geolocation';
 import InstallPrompt from '../components/InstallPrompt';
-import { closeRoom, createRoom, ensureAnonymousSession, getProfile, getRoom, joinRoom, leaveRoom, loadLobby, saveProfile } from '../lib/hunt';
+import { closeRoom, createRoom, ensureAnonymousSession, getProfile, getRoom, joinRoom, leaveRoom, loadLobby, saveHuntZone, saveProfile } from '../lib/hunt';
 import { hapticTap } from '../lib/haptics';
 import { supabase } from '../lib/supabase';
-import type { LobbySnapshot, Room } from '../lib/types';
+import type { HuntZone, LobbySnapshot, Room } from '../lib/types';
+import GameModeIdeas from '../components/GameModeIdeas';
 const { isPositionFresh } = require('../lib/location-freshness.cjs') as { isPositionFresh: (updatedAt: string, nowMs?: number) => boolean };
+const { getZoneState } = require('../lib/zone-state.cjs') as { getZoneState: (location: { latitude: number; longitude: number; accuracy: number | null } | null, zone: HuntZone | null) => 'undefined' | 'no-signal' | 'uncertain' | 'edge' | 'inside' | 'outside' };
 const { messageFromError } = require('../lib/error-message.cjs') as { messageFromError: (error: unknown) => string };
 type ActiveRoomStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 const {
@@ -29,6 +31,32 @@ const {
 
 const MapView = dynamic(() => import('../components/MapView'), { ssr: false });
 type ErrorScope = 'global' | 'profile' | 'create' | 'join';
+
+type ZoneState = ReturnType<typeof getZoneState> | 'stale';
+
+function zoneStateLabel(state: ZoneState) {
+  switch (state) {
+    case 'inside': return 'Dans le terrain';
+    case 'outside': return 'Hors du terrain';
+    case 'edge': return 'Près de la limite';
+    case 'uncertain': return 'Signal imprécis';
+    case 'stale': return 'Signal ancien';
+    case 'no-signal': return 'Balise en attente';
+    default: return 'Terrain non défini';
+  }
+}
+
+function zoneStateHint(state: ZoneState) {
+  switch (state) {
+    case 'inside': return 'Ta position est dans le périmètre choisi.';
+    case 'outside': return 'Tu es au-delà du périmètre. Reviens à ton rythme, sans te presser.';
+    case 'edge': return 'La précision GPS ne permet pas de confirmer de quel côté tu es.';
+    case 'uncertain': return 'La précision GPS est trop faible pour vérifier le périmètre.';
+    case 'stale': return 'La dernière position est trop ancienne pour vérifier le périmètre.';
+    case 'no-signal': return 'Active ta balise pour vérifier ta position.';
+    default: return 'L’hôte peut définir le périmètre de cette chasse.';
+  }
+}
 
 function activeRoomStorage(): ActiveRoomStorage | null {
   try {
@@ -183,6 +211,12 @@ export default function Home() {
   const [desktopLobby, setDesktopLobby] = useState(false);
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState('');
+  const [zoneEditing, setZoneEditing] = useState(false);
+  const [zonePlacingCenter, setZonePlacingCenter] = useState(false);
+  const [zoneDraftCenter, setZoneDraftCenter] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [zoneDraftRadius, setZoneDraftRadius] = useState(500);
+  const [zoneBusy, setZoneBusy] = useState(false);
+  const [zoneError, setZoneError] = useState('');
   const sheetTouchStart = useRef<number | null>(null);
   const didSheetSwipe = useRef(false);
   const [freshnessNow, setFreshnessNow] = useState(() => Date.now());
@@ -211,6 +245,23 @@ export default function Home() {
   }, []);
 
   const gps = useGeolocation(room?.id, userId);
+  const sharedZone = useMemo(() => room?.zone_center_lat != null && room.zone_center_lng != null && room.zone_radius_m != null
+    ? { latitude: room.zone_center_lat, longitude: room.zone_center_lng, radiusMeters: room.zone_radius_m }
+    : null, [room?.zone_center_lat, room?.zone_center_lng, room?.zone_radius_m]);
+  const displayedZone: HuntZone | null = useMemo(() => zoneEditing && zoneDraftCenter
+    ? { ...zoneDraftCenter, radiusMeters: zoneDraftRadius }
+    : sharedZone, [zoneEditing, zoneDraftCenter, zoneDraftRadius, sharedZone]);
+  const ownFreshLocation = snapshot.locations.find((location) => location.user_id === userId && isPositionFresh(location.updated_at, freshnessNow)) ?? null;
+  const ownHasStaleSignal = snapshot.locations.some((location) => location.user_id === userId);
+  const ownZoneState: ZoneState = sharedZone && !ownFreshLocation && ownHasStaleSignal ? 'stale' : getZoneState(ownFreshLocation, sharedZone);
+
+  useEffect(() => {
+    setZoneEditing(false);
+    setZonePlacingCenter(false);
+    setZoneDraftCenter(null);
+    setZoneDraftRadius(500);
+    setZoneError('');
+  }, [room?.id]);
 
   function clearError() {
     setError('');
@@ -220,6 +271,43 @@ export default function Home() {
   function showError(message: string, scope: ErrorScope = 'global') {
     setError(message);
     setErrorScope(scope);
+  }
+
+  function startZoneEditing() {
+    if (!room || room.owner_id !== userId) return;
+    setZoneError('');
+    setZoneDraftCenter(sharedZone ?? (ownFreshLocation ? { latitude: ownFreshLocation.latitude, longitude: ownFreshLocation.longitude } : null));
+    setZoneDraftRadius(sharedZone?.radiusMeters ?? 500);
+    setZoneEditing(true);
+    setZonePlacingCenter(!sharedZone && !ownFreshLocation);
+    setActionNotice(sharedZone || ownFreshLocation ? 'Ajuste le centre du terrain sur la carte si besoin.' : 'Touchez la carte pour placer le centre du terrain.');
+  }
+
+  function cancelZoneEditing() {
+    setZoneEditing(false);
+    setZonePlacingCenter(false);
+    setZoneDraftCenter(null);
+    setZoneError('');
+  }
+
+  async function commitZone(center: { latitude: number; longitude: number } | null, radiusMeters: number | null) {
+    if (!room || room.owner_id !== userId) return;
+    setZoneBusy(true);
+    setZoneError('');
+    try {
+      const updatedRoom = await saveHuntZone(room.id, center, radiusMeters);
+      if (!updatedRoom) throw new Error('Le salon n’a pas pu confirmer le terrain.');
+      setRoom(updatedRoom);
+      setZoneEditing(false);
+      setZonePlacingCenter(false);
+      setZoneDraftCenter(null);
+      setActionNotice(center ? 'Terrain enregistré pour toute l’escouade.' : 'Périmètre retiré.');
+      hapticTap();
+    } catch (saveError) {
+      setZoneError(messageFromError(saveError));
+    } finally {
+      setZoneBusy(false);
+    }
   }
 
   useEffect(() => {
@@ -289,14 +377,33 @@ export default function Home() {
   useEffect(() => {
     if (!room || !supabase) return;
     const client = supabase;
+    const refreshRoom = async () => {
+      try {
+        const currentRoom = await getRoom(room.id);
+        if (currentRoom && activeRoomRef.current?.id === room.id) {
+          setRoom((previous) => previous && previous.id === currentRoom.id
+            && previous.code === currentRoom.code
+            && previous.owner_id === currentRoom.owner_id
+            && previous.zone_center_lat === currentRoom.zone_center_lat
+            && previous.zone_center_lng === currentRoom.zone_center_lng
+            && previous.zone_radius_m === currentRoom.zone_radius_m
+            && previous.zone_available === currentRoom.zone_available
+            ? previous
+            : currentRoom);
+        }
+      } catch {
+        // Keep the current lobby snapshot and retry on the next realtime event/poll.
+      }
+    };
     void refreshLobby();
     const channel = client.channel(`lobby-${room.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'positions', filter: `room_id=eq.${room.id}` }, refreshLobby)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'room_members', filter: `room_id=eq.${room.id}` }, refreshLobby)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${room.id}` }, refreshRoom)
       .subscribe((status) => {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') showError('Le réseau de la chasse est momentanément indisponible.');
       });
-    const fallback = window.setInterval(() => void refreshLobby(), 7000);
+    const fallback = window.setInterval(() => { void refreshLobby(); void refreshRoom(); }, 7000);
     return () => {
       window.clearInterval(fallback);
       void client.removeChannel(channel);
@@ -470,7 +577,7 @@ export default function Home() {
 
       {!nickname ? (
         <section className="welcome-layout">
-          <div className="welcome-copy"><p className="eyebrow"><span className="rec-dot" /> LE TERRAIN, C’EST TA VILLE.</p><h1>La chasse<br />commence ici.</h1><p className="lead-small">Réunis ton escouade.<br />Retrouvez-vous sur le terrain.</p></div>
+          <div className="welcome-copy"><p className="eyebrow"><span className="rec-dot" /> LE TERRAIN, C’EST TA VILLE.</p><h1>La chasse<br />commence ici.</h1><p className="lead-small">Réunis ton escouade.<br />On se retrouve dehors.</p></div>
           <form className="entry-card" aria-busy={busy} onSubmit={(event) => { event.preventDefault(); void handleLogin(); }}>
             <label className="field-label" htmlFor="nickname">Ton pseudo</label>
             {pendingInvite && <p className="invite-context">Invitation à rejoindre la chasse <strong>{pendingInvite}</strong>. Après ton pseudo, tu entreras directement dans le salon.</p>}
@@ -482,10 +589,10 @@ export default function Home() {
         </section>
       ) : !room ? (
         <section className="command-view">
-          <div className="page-intro"><p className="greeting">Salut, {nickname}.</p><h1>Choisis<br />une chasse.</h1><p className="lead-small">Ton escouade. Ta ville. Votre terrain.</p></div>
+          <div className="page-intro"><p className="greeting">Salut, {nickname}.</p><h1>Monte ton<br />escouade.</h1><p className="lead-small">Crée un salon privé ou rejoins ton équipe avec un code.</p></div>
           <div className="command-actions">
             <section className="primary-action">
-              <button className="button button-primary button-wide" disabled={busy} aria-busy={busy} onClick={() => { hapticTap(); void handleCreate(); }}>{busy ? <><span className="button-spinner" aria-hidden="true" /> Création…</> : <>Créer une chasse<ArrowRight size={18} /></>}</button>
+              <button className="button button-primary button-wide" disabled={busy} aria-busy={busy} onClick={() => { hapticTap(); void handleCreate(); }}>{busy ? <><span className="button-spinner" aria-hidden="true" /> Création…</> : <>Créer un salon<ArrowRight size={18} /></>}</button>
               {error && errorScope === 'create' && <ActionError message={error} onRetry={() => void handleCreate()} onDismiss={clearError} />}
             </section>
             <form className="join-action" onSubmit={(event) => { event.preventDefault(); if (joinCode.length === 6) void handleJoin(); }}>
@@ -500,11 +607,27 @@ export default function Home() {
       ) : (
         <section className="lobby-view" aria-label="Lobby de la chasse">
           <div className="field-map-shell">
-            <MapView key={room.id} locations={recentLocations} me={userId} recenterSignal={recenterSignal} focusedPlayerId={focusedPlayerId} onSelectPlayer={selectPlayer} />
+            <MapView
+              key={room.id}
+              locations={recentLocations}
+              me={userId}
+              recenterSignal={recenterSignal}
+              focusedPlayerId={focusedPlayerId}
+              onSelectPlayer={selectPlayer}
+              zone={displayedZone}
+              onMapTap={zoneEditing && zonePlacingCenter ? (center) => {
+                setZoneDraftCenter(center);
+                setZonePlacingCenter(false);
+                setActionNotice('Centre du terrain choisi. Ajuste le rayon puis enregistre.');
+                hapticTap();
+              } : undefined}
+            />
             <div className="field-map-header"><div className="room-identity"><p className="eyebrow">CHASSE PRIVÉE</p><h1>{room.code}</h1></div><div className="room-invite-actions"><InviteButton code={room.code} /><CopyButton value={room.code} label="Copier le code" /></div></div>
-            <div className="map-live"><span className="rec-dot" /><span>{syncing ? 'Actualisation' : 'En direct'} · {activeLocationCount} balise{activeLocationCount > 1 ? 's' : ''}</span></div>
+            <div className="map-live"><span className="rec-dot" /><span>{syncing ? 'Actualisation' : activeLocationCount ? 'Balises récentes' : 'En attente'} · {activeLocationCount}</span></div>
             <p className="sr-only" role="status" aria-live="polite">{actionNotice}</p>
-            {activeLocationCount === 0 && <p className="map-empty-readout">En attente des premières positions</p>}
+            {zonePlacingCenter && <div className="map-pick-banner" role="status"><MapPin size={16} /> Touche la carte pour placer le centre du terrain.</div>}
+            {sharedZone && <div className={`zone-map-state zone-state-${ownZoneState}`} role="status" aria-live="polite"><MapPin size={17} /><span><strong>{zoneStateLabel(ownZoneState)}</strong><small>{zoneStateHint(ownZoneState)}</small></span></div>}
+            {activeLocationCount === 0 && !sharedZone && <p className="map-empty-readout">Active une balise pour apparaître sur la carte.</p>}
             <button className="map-recenter" onClick={() => setRecenterSignal((value) => value + 1)} aria-label="Centrer sur ma position"><Crosshair size={21} /></button>
           </div>
 
@@ -512,12 +635,42 @@ export default function Home() {
             <button className="sheet-toggle" disabled={desktopLobby} onTouchStart={(event) => { sheetTouchStart.current = event.touches[0]?.clientY ?? null; didSheetSwipe.current = false; }} onTouchEnd={(event) => { if (desktopLobby || sheetTouchStart.current == null) return; const delta = (event.changedTouches[0]?.clientY ?? sheetTouchStart.current) - sheetTouchStart.current; if (Math.abs(delta) > 48) { didSheetSwipe.current = true; if ((delta < 0) !== squadExpanded) { setSquadExpanded(delta < 0); hapticTap(); } } sheetTouchStart.current = null; }} onClick={() => { if (didSheetSwipe.current) { didSheetSwipe.current = false; return; } setSquadExpanded((value) => !value); hapticTap(); }} aria-expanded={squadExpanded || desktopLobby} aria-controls="squad-content"><span className="sheet-handle" aria-hidden="true" /><span className="sheet-heading"><span>Escouade <small>{snapshot.members.length}</small></span><ChevronDown size={19} /></span><span className="sr-only">{squadExpanded ? 'Réduire' : 'Développer'} le panneau</span></button>
             <div className="squad-content" id="squad-content">
               <div className="beacon-row"><SignalStatus state={gps.state} accuracy={gps.accuracy} lastUpdate={gps.lastUpdate} errorMessage={gps.errorMessage} /><button className={`beacon-switch ${sharing ? 'active' : ''}`} role="switch" aria-checked={sharing} aria-label="Partager ma position avec l’escouade" onClick={() => { if (sharing) void gps.stop(); else void gps.start(); }}><span /></button></div>
+              <section className="zone-setup" aria-labelledby="zone-setup-title">
+                <div className="lobby-section-heading">
+                  <div><p className="lobby-kicker">TERRAIN COMMUN</p><h3 id="zone-setup-title">Zone de jeu</h3></div>
+                  <span className={`zone-state-tag ${sharedZone ? 'defined' : ''}`}>{sharedZone ? `${sharedZone.radiusMeters} m` : 'À définir'}</span>
+                </div>
+                <p className="zone-setup-copy">Un cercle partagé pour vous repérer. La limite n’est pas une barrière réelle et ne remplace pas le choix d’un lieu sûr.</p>
+                {sharedZone && <p className="zone-summary"><MapPin size={15} /> Terrain défini par l’hôte · rayon {sharedZone.radiusMeters} m</p>}
+                {room.owner_id === userId && room.zone_available !== false && !zoneEditing && <button type="button" className="button button-soft button-wide zone-edit-button" onClick={startZoneEditing}>{sharedZone ? 'Modifier le terrain' : 'Définir le terrain'}<MapPin size={16} /></button>}
+                {room.zone_available === false && <p className="zone-migration-note" role="status">Le terrain partagé n’est pas encore activé sur ce salon. Les autres fonctions de la chasse restent disponibles.</p>}
+                {room.owner_id !== userId && <p className="zone-setup-copy zone-owner-note">{sharedZone ? 'Le terrain est partagé avec toute l’escouade.' : 'L’hôte n’a pas encore délimité le terrain.'}</p>}
+                {zoneEditing && <div className="zone-editor">
+                  <p className="zone-editor-label">Rayon du terrain</p>
+                  <div className="zone-radius-options" role="group" aria-label="Choisir le rayon de la zone">
+                    {[250, 500, 800, 1200].map((radius) => <button key={radius} type="button" className={`zone-radius-option ${zoneDraftRadius === radius ? 'selected' : ''}`} aria-pressed={zoneDraftRadius === radius} onClick={() => setZoneDraftRadius(radius)}>{radius} m</button>)}
+                  </div>
+                  <button type="button" className="button button-soft button-wide zone-edit-button" onClick={() => { setZonePlacingCenter(true); setActionNotice('Touche la carte pour choisir le centre du terrain.'); }}>{zonePlacingCenter ? 'Choisis le centre sur la carte…' : 'Placer le centre sur la carte'}<MapPin size={16} /></button>
+                  {ownFreshLocation && <button type="button" className="button button-ghost button-wide zone-location-button" onClick={() => { setZoneDraftCenter({ latitude: ownFreshLocation.latitude, longitude: ownFreshLocation.longitude }); setZonePlacingCenter(false); setActionNotice('Centre placé sur ta balise. Ajuste le rayon puis enregistre.'); }}>Utiliser ma position actuelle</button>}
+                  <p className="zone-center-readout">{zoneDraftCenter ? 'Centre prêt · touche la carte pour le déplacer.' : 'Aucun centre choisi.'}</p>
+                  {zoneError && <p className="zone-error" role="alert">{zoneError}</p>}
+                  <div className="zone-editor-actions">
+                    <button type="button" className="button button-primary" disabled={zoneBusy || !zoneDraftCenter || zonePlacingCenter} onClick={() => zoneDraftCenter && void commitZone(zoneDraftCenter, zoneDraftRadius)}>{zoneBusy ? 'Enregistrement…' : 'Enregistrer le terrain'}</button>
+                    <button type="button" className="button button-ghost" disabled={zoneBusy} onClick={cancelZoneEditing}>Annuler</button>
+                    {sharedZone && <button type="button" className="button button-ghost zone-remove-button" disabled={zoneBusy} onClick={() => void commitZone(null, null)}>Retirer</button>}
+                  </div>
+                </div>}
+              </section>
+              <GameModeIdeas />
               <ul className="members">{snapshot.members.map((member) => {
                 const location = snapshot.locations.find((item) => item.user_id === member.user_id);
                 const fresh = Boolean(location && isPositionFresh(location.updated_at, freshnessNow));
+                const currentLocation = fresh ? location : null;
+                const memberZoneState = getZoneState(currentLocation, sharedZone);
                 const own = member.user_id === userId;
                 const nickname = member.profiles?.nickname ?? 'Joueur';
-                return <li key={member.user_id}><button type="button" className={`member-row ${focusedPlayerId === member.user_id ? 'selected' : ''}`} onClick={() => selectPlayer(member.user_id)} aria-label={`${nickname}, ${fresh ? 'centrer la carte sur sa position' : 'aucune position récente'}`} aria-current={focusedPlayerId === member.user_id ? 'true' : undefined}><span className={`member-avatar ${own ? 'self' : ''} ${fresh ? 'online' : ''}`}>{nickname.slice(0, 1).toUpperCase()}</span><span className="member-copy"><strong>{nickname}{own && <span className="you-tag">toi</span>}</strong><small>{fresh ? `${formatAge(location?.updated_at)} · ±${location?.accuracy == null ? '—' : Math.round(location.accuracy)} m` : location ? `Dernier signal · ${formatAge(location.updated_at)}` : 'En attente de position'}</small></span><span className={`presence-dot ${fresh ? 'online' : ''} ${own ? 'self' : ''}`} aria-label={fresh ? 'Position récente' : 'Sans position récente'} /></button></li>;
+                const zoneReadout = sharedZone ? (fresh ? zoneStateLabel(memberZoneState) : location ? 'Signal ancien' : 'Balise en attente') : '';
+                return <li key={member.user_id}><button type="button" className={`member-row ${focusedPlayerId === member.user_id ? 'selected' : ''}`} onClick={() => selectPlayer(member.user_id)} aria-label={`${nickname}, ${fresh ? 'centrer la carte sur sa position' : 'aucune position récente'}${zoneReadout ? `, ${zoneReadout}` : ''}`} aria-current={focusedPlayerId === member.user_id ? 'true' : undefined}><span className={`member-avatar ${own ? 'self' : ''} ${fresh ? 'online' : ''}`}>{nickname.slice(0, 1).toUpperCase()}</span><span className="member-copy"><strong>{nickname}{own && <span className="you-tag">toi</span>}</strong><small>{fresh ? `${formatAge(location?.updated_at)} · ±${location?.accuracy == null ? '—' : Math.round(location.accuracy)} m${zoneReadout ? ` · ${zoneReadout}` : ''}` : location ? `Dernier signal · ${formatAge(location.updated_at)}` : 'En attente de position'}</small></span><span className={`presence-dot ${fresh ? 'online' : ''} ${own ? 'self' : ''}`} aria-label={fresh ? 'Position récente' : 'Sans position récente'} /></button></li>;
               })}</ul>
               {snapshot.members.length === 0 && <p className="squad-empty">Connexion à l’escouade…</p>}
               <div className="sheet-details">
