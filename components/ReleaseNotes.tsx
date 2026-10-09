@@ -34,9 +34,12 @@ export default function ReleaseNotes() {
   useEffect(() => {
     if (!buildRelease?.isVercelDeployment) return;
     try {
-      setVisible(window.localStorage.getItem('hunt:last-seen-deployment') !== buildRelease.deploymentId);
+      const unseenRelease = window.localStorage.getItem('hunt:last-seen-deployment') !== buildRelease.deploymentId;
+      setVisible(unseenRelease);
+      setOpen(unseenRelease);
     } catch {
       setVisible(true);
+      setOpen(true);
     }
 
     let stopped = false;
@@ -49,6 +52,7 @@ export default function ReleaseNotes() {
         setRelease(latest);
         setNeedsReload(true);
         setVisible(true);
+        setOpen(true);
       } catch {
         // The in-app release label remains available if the version check is offline.
       }
@@ -112,7 +116,7 @@ export default function ReleaseNotes() {
           </ul>
           <div className="release-dialog-actions">
             {needsReload && <button className="button button-primary" onClick={() => window.location.reload()}><RefreshCw size={15} /> Recharger HUNT</button>}
-            <button className="button button-soft" onClick={dismiss}>{needsReload ? 'Plus tard' : 'Compris'}</button>
+            <button className="button button-soft" onClick={() => { if (needsReload) setOpen(false); else dismiss(); }}>{needsReload ? 'Plus tard' : 'Compris'}</button>
           </div>
         </section>
       </div>}
