@@ -20,7 +20,7 @@
 - Partie complète **La Piste**, règles de capture/extraction et géorepérage de jeu.
 - Promesse de géolocalisation transmise écran verrouillé / application suspendue. Le callback natif dépend encore du WebView et il manque le contrat de session d’upload côté serveur.
 - Widget iOS, Dynamic Island ou Live Updates Android opérationnels.
-- Migration `publish_location` appliquée au projet Supabase de production, publication Vercel ou binaire iOS/Android signé : aucun accès/preuve exploitable n’est disponible dans ce sprint.
+- Migration `publish_location` appliquée au projet Supabase de production et binaire iOS/Android signé ou distribué.
 
 ## Critères d’acceptation
 
@@ -39,12 +39,20 @@
 | --- | --- | --- |
 | Produit & expérience joueur | Définir la tranche lobby mobile et ses états; garder les règles La Piste en backlog produit. | Proposition reçue, intégrée aux critères. |
 | Architecture & ingénierie | Auditer les contrats GPS natifs/RPC et isoler les courses de session; borner le natif hors promesse de continuité. | Audit reçu; annulation de démarrage, arrêt au démontage et expiration du signal intégrés. |
-| Réalisation | Corrections UI, états GPS, haptique et release notes limitées au périmètre validé. | En cours sous le responsable de projet. |
+| Réalisation | Corrections UI, états GPS, haptique et release notes limitées au périmètre validé. | Livré sur `main` dans `7a560b0`; notes de version et données du build vérifiées sur la cible. |
 | Qualité & sécurité | Relecture indépendante des parcours, états d’erreur, accessibilité et assertions natives. | P1 arrière-plan fermé par retrait des garanties, verdict web positif; aucun essai natif sur appareil. |
 | Intégration | Contrôler recouvrement, migrations, configuration Capacitor, artefacts générés et portée de livraison. | Audit reçu; blockers natifs exclus du lot web. |
 | Juridique/vie privée | Mettre à jour les sources et risques pour GPS partagé, invitations, zones et arrière-plan. | Mise à jour datée du 9 octobre versée au mémo légal. |
-| Release & opérations | Vérifier l’écart entre CI, Vercel, Supabase et binaires; établir quelles preuves existent. | Audit reçu; workflow local n’est pas une preuve de déploiement. |
+| Release & opérations | Vérifier l’écart entre CI, Vercel, Supabase et binaires; établir quelles preuves existent. | CI, Vercel production et SHA actif vérifiés; migration Supabase et binaire mobile restent hors livraison. |
 
 ## Sortie du sprint
 
-Le bloc n’est livrable qu’après acceptation par la Qualité et l’intégration du responsable de projet, vérifications locales et statut CI connu. L’intégration sur `main` n’entraîne pas à elle seule la déclaration « en production ». Après livraison, noter séparément CI, URL de production servie, migration Supabase et état des builds natifs.
+Le bloc a été accepté après revue Qualité/Intégration et vérifications locales, puis livré.
+
+### Résultat vérifié le 9 octobre 2026
+
+- Commit `7a560b09545191d60723dae8e9b4ca7507f9fd9d` poussé sur `main`.
+- Les jobs GitHub Actions `Typecheck and production build` et `Mobile lobby end-to-end` sont terminés avec succès.
+- Vercel deployment `dpl_9TnR8B2Uz8GRXMLAxKSDtpeczVb9` est `READY` en `production`, relié au même SHA. L’alias [`hunt-lobby.vercel.app`](https://hunt-lobby.vercel.app) et `/release.json` répondent `200`; le JSON expose le SHA attendu et l’environnement `production`.
+- `npm run build:mobile` et `cap sync` passent, mais `xcodebuild`/CocoaPods sont absents et aucun build Android Gradle/appareil physique n’a été vérifié. Aucun binaire mobile n’est déclaré livrable.
+- La migration `publish_location` est présente dans le dépôt mais son application à Supabase Production n’est pas vérifiée. Le GPS natif en arrière-plan et les surfaces Live Activities/Dynamic Island ne sont pas livrés.
