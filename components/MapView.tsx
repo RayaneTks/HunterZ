@@ -52,18 +52,23 @@ function resizeAccuracyRing(record: PlayerMarker, zoom: number) {
   ring.style.height = ring.style.width;
 }
 
-export default function MapView({ locations, me, recenterSignal, focusedPlayerId, onSelectPlayer, zone = null, onMapTap }: { locations: PlayerLocation[]; me: string; recenterSignal: number; focusedPlayerId: string | null; onSelectPlayer: (playerId: string) => void; zone?: HuntZone | null; onMapTap?: (center: { latitude: number; longitude: number }) => void }) {
+export default function MapView({ locations, me, recenterSignal, focusedPlayerId, onSelectPlayer, zone = null, onMapTap, onMapCenterChange, placementMode = false }: { locations: PlayerLocation[]; me: string; recenterSignal: number; focusedPlayerId: string | null; onSelectPlayer: (playerId: string) => void; zone?: HuntZone | null; onMapTap?: (center: { latitude: number; longitude: number }) => void; onMapCenterChange?: (center: { latitude: number; longitude: number }) => void; placementMode?: boolean }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapInstance | null>(null);
   const markers = useRef(new Map<string, PlayerMarker>());
   const centeredOnOwnPosition = useRef(false);
   const fittedToSquad = useRef(false);
+  const userMapMotion = useRef(false);
   const lastRecenterSignal = useRef(0);
   const reduceMotion = useRef(false);
   const selectPlayerRef = useRef(onSelectPlayer);
   selectPlayerRef.current = onSelectPlayer;
   const onMapTapRef = useRef(onMapTap);
   onMapTapRef.current = onMapTap;
+  const onMapCenterChangeRef = useRef(onMapCenterChange);
+  onMapCenterChangeRef.current = onMapCenterChange;
+  const placementModeRef = useRef(placementMode);
+  placementModeRef.current = placementMode;
   const zoneRef = useRef(zone);
   zoneRef.current = zone;
   const fittedZoneRef = useRef('');
@@ -84,6 +89,15 @@ export default function MapView({ locations, me, recenterSignal, focusedPlayerId
     });
     map.current = instance;
     instance.on('click', (event) => onMapTapRef.current?.({ latitude: event.lngLat.lat, longitude: event.lngLat.lng }));
+    instance.on('movestart', (event) => {
+      if ((event as { originalEvent?: Event }).originalEvent) userMapMotion.current = true;
+    });
+    instance.on('moveend', () => {
+      if (!placementModeRef.current || !userMapMotion.current) return;
+      userMapMotion.current = false;
+      const center = instance.getCenter();
+      onMapCenterChangeRef.current?.({ latitude: center.lat, longitude: center.lng });
+    });
     instance.on('load', () => {
       instance.addSource('hunt-zone', { type: 'geojson', data: circleFeature(zoneRef.current) });
       instance.addLayer({
@@ -139,6 +153,15 @@ export default function MapView({ locations, me, recenterSignal, focusedPlayerId
   }, []);
 
   useEffect(() => {
+    if (!placementMode || !map.current) return;
+    userMapMotion.current = false;
+    fittedToSquad.current = true;
+    centeredOnOwnPosition.current = true;
+    const center = map.current.getCenter();
+    onMapCenterChangeRef.current?.({ latitude: center.lat, longitude: center.lng });
+  }, [placementMode]);
+
+  useEffect(() => {
     const currentMap = map.current;
     if (!currentMap || !currentMap.isStyleLoaded()) return;
     const source = currentMap.getSource('hunt-zone') as GeoJSONSource | undefined;
@@ -147,6 +170,7 @@ export default function MapView({ locations, me, recenterSignal, focusedPlayerId
       fittedZoneRef.current = '';
       return;
     }
+    if (placementModeRef.current) return;
     const signature = `${zone.latitude}:${zone.longitude}:${zone.radiusMeters}`;
     if (signature === fittedZoneRef.current) return;
     fittedZoneRef.current = signature;
@@ -204,7 +228,7 @@ export default function MapView({ locations, me, recenterSignal, focusedPlayerId
   useEffect(() => {
     const currentMap = map.current;
     const own = locations.find((player) => player.user_id === me);
-    if (!currentMap || locations.length === 0) return;
+    if (!currentMap || placementModeRef.current || locations.length === 0) return;
     if (locations.length > 1 && !fittedToSquad.current) {
       const bounds = new maplibregl.LngLatBounds();
       locations.forEach((player) => bounds.extend([player.longitude, player.latitude]));
@@ -220,7 +244,7 @@ export default function MapView({ locations, me, recenterSignal, focusedPlayerId
   }, [locations, me]);
 
   useEffect(() => {
-    if (!recenterSignal || recenterSignal === lastRecenterSignal.current || !map.current) return;
+    if (!recenterSignal || recenterSignal === lastRecenterSignal.current || !map.current || placementModeRef.current) return;
     const own = locations.find((player) => player.user_id === me);
     if (!own) return;
     lastRecenterSignal.current = recenterSignal;
@@ -229,11 +253,14 @@ export default function MapView({ locations, me, recenterSignal, focusedPlayerId
 
   useEffect(() => {
     const currentMap = map.current;
-    if (!currentMap || !focusedPlayerId) return;
+    if (!currentMap || placementModeRef.current || !focusedPlayerId) return;
     const player = locations.find((location) => location.user_id === focusedPlayerId);
     if (!player) return;
     currentMap.flyTo({ center: [player.longitude, player.latitude], zoom: Math.max(currentMap.getZoom(), 16), duration: reduceMotion.current ? 0 : 500 });
   }, [focusedPlayerId, locations]);
 
-  return <div ref={container} className="map" aria-label={onMapTap ? 'Carte interactive : touche un point pour placer le centre du terrain' : 'Carte des joueurs et du terrain du lobby'} />;
+  return <>
+    <div ref={container} className="map" aria-label="Carte des joueurs et du terrain du lobby" />
+    {placementMode && <div className="map-center-reticle" aria-hidden="true"><span /><span /><span /><span /></div>}
+  </>;
 }

@@ -169,9 +169,8 @@ export function useGeolocation(roomId: string | undefined, userId: string) {
         distanceFilter: 5,
         minIntervalMs: 4000,
         networkFallback: true,
-        // The SQL RPC derives auth.uid() and validates membership before writing.
-        // Direct native delivery is enabled after a server-issued, room-bound
-        // session token exists. Current client JWT is not safe for room binding.
+        // publishNativeLocation sends callback fixes through an authenticated RPC;
+        // the server resolves auth.uid() and checks salon membership before writing.
       }, session.callback);
       if (nativeSession.current !== session || !isCurrentRequest()) {
         await BackgroundGeolocation.stop();
