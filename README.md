@@ -1,16 +1,47 @@
-# HUNT — jeu de poursuite GPS en plein air
+# HUNT — Jeu de poursuite GPS en plein air
 
-Application web mobile et coque Capacitor pour réunir des escouades dehors. La base actuelle fournit un lobby privé, des invitations par lien/code et une carte de positions récentes. Le mode principal prévu est **La Piste**, dans une zone choisie ensemble. La zone de jeu, ses alertes de frontière et les règles de manche restent à construire; la direction et les critères sont dans [`docs/product-direction.md`](docs/product-direction.md). Le périmètre n’est jamais une garantie de sécurité.
+Application web mobile avec coque Capacitor pour organiser des parties en extérieur. La version actuelle propose des lobbies privés, des invitations par code ou lien et une carte des positions récentes des participants.
 
-L'organisation des pôles, leurs mandats et les gates de livraison sont décrits dans [`docs/project-governance.md`](docs/project-governance.md). La veille juridique initiale et ses déclencheurs sont dans [`docs/legal/veille-juridique-initiale-2026-10-09.md`](docs/legal/veille-juridique-initiale-2026-10-09.md).
+## Fonctionnalités
 
-## Démarrage local
+- Création et adhésion à un lobby privé.
+- Invitations par lien ou code.
+- Carte des membres et indication de la précision GPS.
+- Partage de position activé explicitement et arrêté à la sortie.
+- Gestion des positions périmées et fermeture du lobby.
+
+## Technologies
+
+Next.js 15 · React 19 · TypeScript · Supabase (PostgreSQL, authentification et Realtime) · MapLibre GL · Capacitor 8.
+
+## État du projet
+
+Le mode de poursuite principal, **La Piste**, est en développement. La direction produit et le périmètre à livrer sont décrits dans [`docs/product-direction.md`](docs/product-direction.md).
+
+Le suivi natif en arrière-plan, les Live Activities iOS et les Live Updates Android ne sont pas validés comme fonctionnalités complètes. Garder l’application ouverte pour le partage de position. Une zone GPS ne garantit pas la sécurité des déplacements.
+
+## Organisation
+
+| Chemin | Rôle |
+|---|---|
+| `app/` | Pages et interface principale. |
+| `components/` | Carte, installation et composants partagés. |
+| `hooks/` et `lib/` | Géolocalisation, gestion des lobbies et utilitaires. |
+| `supabase/` | Schéma, migrations et contrôles de base. |
+| `android/` et `ios/` | Projets natifs Capacitor. |
+| `tests/` | Tests unitaires et parcours Playwright. |
+
+## Documentation
+
+[Direction produit](docs/product-direction.md) · [Organisation du projet](docs/project-governance.md) · [Veille juridique initiale](docs/legal/veille-juridique-initiale-2026-10-09.md)
+
+## Installation
 
 Prérequis : Node.js 20.9+ (Node 22 recommandé) et un projet Supabase.
 
 ```bash
 npm install
-copy .env.example .env.local
+cp .env.example .env.local
 npm run dev
 ```
 
