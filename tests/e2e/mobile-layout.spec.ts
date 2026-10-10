@@ -4,6 +4,7 @@ for (const size of [{width:320,height:568},{width:390,height:844},{width:844,hei
     await page.setViewportSize(size);
     await page.goto('/');
     await expect(page.getByLabel('Ton pseudo')).toBeVisible();
+    await expect(page.getByRole('button', {name:'Découvrir', exact:true})).toBeVisible();
     const viewport = await page.locator('meta[name=viewport]').getAttribute('content');
     expect(viewport).not.toContain('user-scalable=no');
     expect(viewport).not.toContain('maximum-scale=1');
@@ -13,5 +14,11 @@ for (const size of [{width:320,height:568},{width:390,height:844},{width:844,hei
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await page.evaluate(()=>document.documentElement.style.fontSize='200%');
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    const notice = page.locator('.release-notice');
+    for (const control of [notice.getByRole('button', {name:'Découvrir', exact:true}), notice.getByRole('button', {name:'Fermer l’avis de version'})]) {
+      const bounds = await control.boundingBox();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(size.width);
+    }
   });
 }
