@@ -1,0 +1,7 @@
+12:08:13 [INFO] found 16 buttons
+12:08:14 [INFO] found 112 interfaces across 32 modules
+12:08:14 [ERROR] outdated pattern: dwSensitivity
+12:08:15 [ERROR] outdated pattern: dwSoundSystem_engineViewData
+12:08:15 [INFO] found 29 offsets across 5 modules
+12:08:15 [INFO] found 3301 classes and 568 enums across 18 modules
+12:08:15 [INFO] analysis completed in 2.34s

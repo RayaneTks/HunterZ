@@ -1,0 +1,17 @@
+{
+  "name": "hunterz-license-server",
+  "version": "1.0.0",
+  "description": "Système de gestion et validation de licences DayZ avec Heartbeat",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "express": "^4.22.2"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.8.1"
+  }
+}

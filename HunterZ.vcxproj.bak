@@ -1,0 +1,282 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}</ProjectGuid>
+    <RootNamespace>HunterZ</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <!-- ============ DEBUG x64 ============ -->
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+
+  <!-- ============ RELEASE x64 ============ -->
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props"
+            Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')"
+            Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props"
+            Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')"
+            Label="LocalAppDataPlatform" />
+  </ImportGroup>
+
+  <PropertyGroup Label="UserMacros" />
+
+  <!-- ============ INCLUDE PATHS ============ -->
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <TargetName>HunterZ_d</TargetName>
+    <OutDir>$(ProjectDir)bin\Debug\</OutDir>
+    <IntDir>$(ProjectDir)obj\Debug\</IntDir>
+    <IncludePath>$(ProjectDir)include\;$(ProjectDir)src\;$(ProjectDir)src\sdk\cs2\;$(ProjectDir)src\sdk\cs2\protobuf\;$(ProjectDir)src\sdk\math\;$(ProjectDir)src\core\;$(ProjectDir)src\utils\;$(ProjectDir)src\render\;$(ProjectDir)src\hooks\;$(ProjectDir)src\features\aimbot\;$(ProjectDir)src\features\visuals\;$(ProjectDir)src\features\inventory\;$(ProjectDir)third_party\;$(ProjectDir)third_party\imgui\;$(ProjectDir)third_party\minhook\include\;$(ProjectDir)third_party\rapidjson\include\;$(ProjectDir)config\;$(ProjectDir)offsets\;$(ProjectDir)third_party\imgui\freetype\;$(ProjectDir)src\sdk\cs2\;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)lib\x64\;$(LibraryPath)</LibraryPath>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <TargetName>HunterZ</TargetName>
+    <OutDir>$(ProjectDir)bin\Release\</OutDir>
+    <IntDir>$(ProjectDir)obj\Release\</IntDir>
+    <IncludePath>$(ProjectDir)include\;$(ProjectDir)src\;$(ProjectDir)src\sdk\cs2\;$(ProjectDir)src\sdk\cs2\protobuf\;$(ProjectDir)src\sdk\math\;$(ProjectDir)src\core\;$(ProjectDir)src\utils\;$(ProjectDir)src\render\;$(ProjectDir)src\hooks\;$(ProjectDir)src\features\aimbot\;$(ProjectDir)src\features\visuals\;$(ProjectDir)src\features\inventory\;$(ProjectDir)third_party\;$(ProjectDir)third_party\imgui\;$(ProjectDir)third_party\minhook\include\;$(ProjectDir)third_party\rapidjson\include\;$(ProjectDir)config\;$(ProjectDir)offsets\;$(ProjectDir)third_party\imgui\freetype\;$(ProjectDir)src\sdk\cs2\;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)lib\x64\;$(LibraryPath)</LibraryPath>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+
+  <!-- ============ DEBUG COMPILE ============ -->
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>false</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;DbgHelp.lib;Psapi.lib;winhttp.lib;BlackBone.lib;FW1FontWrapperRel.lib;freetype.lib;libMinHook.lib;libprotobuf.lib;BeaEngine64.lib;diaguids.lib;dwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <!-- ============ RELEASE COMPILE (stealth) ============ -->
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level2</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>false</SDLCheck>
+      <!-- RELEASE_BUILD dÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©fini ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ active XorStr, dÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©sactive logs debug -->
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;_USRDLL;RELEASE_BUILD;DISABLE_PROTOBUF=1;DISABLE_INVENTORY=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <!-- /MT = static runtime, pas de dÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©pendance MSVCRT visible -->
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <!-- DÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©sactive RTTI ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ rÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©duit mÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©tadonnÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©es type visible -->
+      <RuntimeTypeInfo>false</RuntimeTypeInfo>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <!-- /GS- = pas de stack canary check ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ moins de code de sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©curitÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â© injectable -->
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <AdditionalOptions>/bigobj /Gy %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <!-- Pas de PDB en Release ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ aucun symbol exposÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â© -->
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <!-- Pas de manifest intÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©grÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â© ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ moins de metadata PE -->
+      <GenerateManifest>false</GenerateManifest>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;DbgHelp.lib;Psapi.lib;winhttp.lib;BlackBone.lib;FW1FontWrapperRel.lib;freetype.lib;libMinHook.lib;libprotobuf.lib;BeaEngine64.lib;diaguids.lib;dwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <!-- Supprime les exports inutiles -->
+      <AdditionalOptions>/NOEXP /NOIMPLIB %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+    <!-- Post-build: supprimer le .exp et .lib gÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©rÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©s (pas nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©cessaires pour DLL cheat) -->
+    <PostBuildEvent>
+      <Command>if exist "$(OutDir)$(TargetName).exp" del /f "$(OutDir)$(TargetName).exp"
+if exist "$(OutDir)$(TargetName).lib" del /f "$(OutDir)$(TargetName).lib"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+
+  <!-- ============ SOURCE FILES ============ -->
+  <ItemGroup>
+    <!-- DllMain -->
+    <ClCompile Include="src\dllmain.cpp" />
+
+    <!-- Core -->
+    <ClCompile Include="src\core\CAndromedaClient.cpp" />
+    <ClCompile Include="src\core\CAndromedaGUI.cpp" />
+    <ClCompile Include="src\core\CAndromedaMenu.cpp" />
+    <ClCompile Include="src\core\CHook_Loader.cpp" />
+    <!-- CInjector.cpp, DllLauncher.cpp, DriverControl.cpp excluded Ã¢â‚¬â€ injector project, not DLL -->
+
+    <!-- Features: Aimbot -->
+    <ClCompile Include="src\features\aimbot\CAimbot.cpp" />
+    <ClCompile Include="src\features\aimbot\CSilentAim.cpp" />
+
+    <!-- Features: Visuals -->
+    <ClCompile Include="src\features\visuals\CRadar.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="src\features\visuals\CVisual.cpp" />
+
+    <!-- Features: Inventory -->
+    <ClCompile Include="src\features\inventory\CCSInventoryManager.cpp" />
+    <ClCompile Include="src\features\inventory\CCSPlayerInventory.cpp" />
+    <ClCompile Include="src\features\inventory\CEconItem.cpp" />
+    <ClCompile Include="src\features\inventory\CEconItemDefinition.cpp" />
+    <ClCompile Include="src\features\inventory\CEconItemSchema.cpp" />
+    <ClCompile Include="src\features\inventory\CEconItemSystem.cpp" />
+    <ClCompile Include="src\features\inventory\CGCClientSharedObjectCache.cpp" />
+    <ClCompile Include="src\features\inventory\CGCClientSharedObjectTypeCache.cpp" />
+    <ClCompile Include="src\features\inventory\CInventoryChanger.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="src\features\inventory\CInventoryItemsManager.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="src\features\inventory\CL_ItemDefinition.cpp" />
+
+    <!-- Hooks -->
+    <ClCompile Include="src\hooks\Hook_AntiTamper.cpp" />
+    <ClCompile Include="src\hooks\Hook_CreateMove.cpp" />
+    <ClCompile Include="src\hooks\Hook_CreateSwapChain.cpp" />
+    <ClCompile Include="src\hooks\Hook_DrawGlow.cpp" />
+    <ClCompile Include="src\hooks\Hook_EquipItemInLoadout.cpp" />
+    <ClCompile Include="src\hooks\Hook_FireEventClientSide.cpp" />
+    <ClCompile Include="src\hooks\Hook_FrameStageNotify.cpp" />
+    <ClCompile Include="src\hooks\Hook_GetMatricesForView.cpp" />
+    <ClCompile Include="src\hooks\Hook_IsLoadoutAllowed.cpp" />
+    <ClCompile Include="src\hooks\Hook_IsRelativeMouseMode.cpp" />
+    <ClCompile Include="src\hooks\Hook_MouseInputEnabled.cpp" />
+    <ClCompile Include="src\hooks\Hook_OnAddEntity.cpp" />
+    <ClCompile Include="src\hooks\Hook_OnClientOutput.cpp" />
+    <ClCompile Include="src\hooks\Hook_OnRemoveEntity.cpp" />
+    <ClCompile Include="src\hooks\Hook_ParseMessage.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="src\hooks\Hook_Present.cpp" />
+    <ClCompile Include="src\hooks\Hook_ResizeBuffers.cpp" />
+    <ClCompile Include="src\hooks\Hook_SOCacheSubscribed.cpp" />
+
+    <!-- SDK CS2 -->
+    <ClCompile Include="src\sdk\cs2\CBasePattern.cpp" />
+    <ClCompile Include="src\sdk\cs2\CEntityCache.cpp" />
+    <ClCompile Include="src\sdk\cs2\CEntityData.cpp" />
+    <ClCompile Include="src\sdk\cs2\CFunctionList.cpp" />
+    <ClCompile Include="src\sdk\cs2\CHandle.cpp" />
+    <ClCompile Include="src\sdk\cs2\CL_Bones.cpp" />
+    <ClCompile Include="src\sdk\cs2\CL_Bypass.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="src\sdk\cs2\CL_Bypass_stub.cpp" />
+    <ClCompile Include="src\features\visuals\CRadar_stub.cpp" />
+    <ClCompile Include="src\sdk\cs2\CL_Players.cpp" />
+    <ClCompile Include="src\sdk\cs2\CL_Trace.cpp" />
+    <ClCompile Include="src\sdk\cs2\CL_VisibleCheck.cpp" />
+    <ClCompile Include="src\sdk\cs2\CL_Weapons.cpp" />
+    <ClCompile Include="src\sdk\cs2\CSchemaOffset.cpp" />
+    <ClCompile Include="src\sdk\cs2\CSDK_Loader.cpp" />
+    <ClCompile Include="src\sdk\cs2\IGameEvent.cpp" />
+    <ClCompile Include="src\sdk\cs2\Interface.cpp" />
+    <ClCompile Include="src\sdk\cs2\SDK.cpp" />
+    <ClCompile Include="src\sdk\cs2\SDL3_Functions.cpp" />
+    <ClCompile Include="src\sdk\cs2\TIER0_Functions.cpp" />
+
+    <!-- SDK Math -->
+    <ClCompile Include="src\sdk\math\Math.cpp" />
+    <ClCompile Include="src\sdk\math\Matrix.cpp" />
+    <ClCompile Include="src\sdk\math\QAngle.cpp" />
+    <ClCompile Include="src\sdk\math\Vector3.cpp" />
+    <ClCompile Include="src\sdk\math\Vector4.cpp" />
+
+    <!-- Render -->
+    <ClCompile Include="src\render\CFont.cpp" />
+    <ClCompile Include="src\render\CFontManager.cpp" />
+    <ClCompile Include="src\render\CRender.cpp" />
+    <ClCompile Include="src\render\CRenderStackSystem.cpp" />
+
+    <!-- Utils -->
+    <ClCompile Include="src\utils\CrashLog.cpp" />
+    <ClCompile Include="src\utils\CSettingsJson.cpp" />
+    <ClCompile Include="src\utils\DevLog.cpp" />
+    <ClCompile Include="src\utils\MemoryEngine.cpp" />
+    <ClCompile Include="src\utils\ModuleLoaderHelper.cpp" />
+    <ClCompile Include="src\utils\StringHelper.cpp" />
+
+    <!-- ImGui -->
+    <ClCompile Include="third_party\imgui\imgui.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_draw.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_tables.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_impl_dx11.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_impl_win32.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_freetype.cpp" />
+
+    <!-- MinHook -->
+    <ClCompile Include="third_party\minhook\src\buffer.c" />
+    <ClCompile Include="third_party\minhook\src\hook.c" />
+    <ClCompile Include="third_party\minhook\src\trampoline.c" />
+    <ClCompile Include="third_party\minhook\src\hde\hde32.c" />
+    <ClCompile Include="third_party\minhook\src\hde\hde64.c" />
+  </ItemGroup>
+
+  <!-- ============ HEADER FILES ============ -->
+  <ItemGroup>
+    <ClInclude Include="config\Config.hpp" />
+    <ClInclude Include="config\Settings.hpp" />
+    <ClInclude Include="offsets\Offsets.hpp" />
+    <ClInclude Include="offsets\client_dll.hpp" />
+    <ClInclude Include="offsets\buttons.hpp" />
+    <ClInclude Include="src\utils\XorStr.hpp" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+
+</Project>
+
+
+
+
+
+
